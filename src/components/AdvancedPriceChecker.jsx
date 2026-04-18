@@ -24,6 +24,7 @@ const initialState = {
   packagingCost: 0,
   shippingCost: 0,
   miscellaneousCost: 0,
+  isFamilyPricing: false,
 };
 
 function init(config) {
@@ -241,7 +242,8 @@ export default function AdvancedPriceChecker({ config }) {
     (additionalServices.assembly ? (config?.assemblyCost || 350) : 0);
 
   const basePriceWithFailure = rawOpsCost + failureBufferCost + laborCost + matCost + logisticsCost + servicesCost;
-  const markupCost = basePriceWithFailure * ((config?.markupPercent || 100) / 100);
+  const appliedMarkupPercent = state.isFamilyPricing ? (config?.familyMarkupPercent || 15) : (config?.markupPercent || 30);
+  const markupCost = basePriceWithFailure * (appliedMarkupPercent / 100);
   const finalPrice = basePriceWithFailure + markupCost;
 
   const handleNum = (e) => {
@@ -301,7 +303,7 @@ export default function AdvancedPriceChecker({ config }) {
         servicesCost: servicesCost,
         markupCost: markupCost,
         failureRatePercent: config?.failureRatePercent || 10,
-        markupPercent: config?.markupPercent || 30,
+        markupPercent: appliedMarkupPercent,
         editorState
       };
 
@@ -345,7 +347,7 @@ export default function AdvancedPriceChecker({ config }) {
             <User className="w-4 h-4 text-zinc-500" />
             <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-widest">Client Identity</h2>
           </div>
-          <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-5">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Client Name <span className="text-red-500">*</span></label>
               <input
@@ -361,6 +363,18 @@ export default function AdvancedPriceChecker({ config }) {
                 placeholder="+63 912 345 6789"
                 className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900"
               />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Pricing Tier</label>
+              <select
+                name="isFamilyPricing"
+                value={state.isFamilyPricing}
+                onChange={(e) => dispatch({ type: 'UPDATE_FIELD', field: 'isFamilyPricing', value: e.target.value === 'true' })}
+                className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900"
+              >
+                <option value="false">Standard Pricing</option>
+                <option value="true">Family / Friends Pricing</option>
+              </select>
             </div>
           </div>
         </section>
@@ -823,7 +837,7 @@ export default function AdvancedPriceChecker({ config }) {
 
               {markupCost > 0 && (
                 <div className="flex justify-between items-center group pt-2 border-t border-zinc-100 mt-2">
-                  <span className="font-semibold text-emerald-600">Markup Profit <span className="text-xs font-normal">({config?.markupPercent || 30}%)</span></span>
+                  <span className="font-semibold text-emerald-600">Markup Profit <span className="text-xs font-normal">({appliedMarkupPercent}%)</span></span>
                   <span className="text-emerald-700 font-semibold group-hover:text-emerald-800">
                     +{markupCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>

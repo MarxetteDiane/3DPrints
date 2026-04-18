@@ -18,6 +18,7 @@ const DEFAULT_SYSTEM_CONFIG = {
   assemblyCost: 350,
   failureRatePercent: 10,
   markupPercent: 30,
+  familyMarkupPercent: 15,
   wearTearCostPer15Min: 2.5,
 };
 
@@ -33,6 +34,7 @@ function mapConfigRowToState(row) {
     assemblyCost: Number(row.assembly_cost),
     failureRatePercent: Number(row.failure_rate_percent),
     markupPercent: Number(row.markup_percent),
+    familyMarkupPercent: Number(row.family_markup_percent || 15),
     wearTearCostPer15Min: Number(row.wear_tear_cost_per_15_min),
   };
 }
@@ -50,6 +52,7 @@ function mapConfigStateToRow(config) {
     assembly_cost: config.assemblyCost,
     failure_rate_percent: config.failureRatePercent,
     markup_percent: config.markupPercent,
+    family_markup_percent: config.familyMarkupPercent || 15,
     wear_tear_cost_per_15_min: config.wearTearCostPer15Min,
     updated_at: new Date().toISOString(),
   };

@@ -31,6 +31,7 @@ const DEFAULT_CONFIG = {
   filamentChangeCost: 0.1,
   failureRatePercent: 10,
   markupPercent: 30,
+  familyMarkupPercent: 15,
   wearTearCostPer15Min: 2.5,
 };
 
@@ -140,6 +141,7 @@ function toEditorState(order, config) {
       packagingCost: persisted.packagingCost ?? 0,
       shippingCost: persisted.shippingCost ?? 0,
       miscellaneousCost: persisted.miscellaneousCost ?? 0,
+      isFamilyPricing: persisted.isFamilyPricing || false,
     };
   }
 
@@ -194,6 +196,7 @@ function toEditorState(order, config) {
     packagingCost: logisticsCost,
     shippingCost: 0,
     miscellaneousCost: 0,
+    isFamilyPricing: false,
   };
 }
 
@@ -268,7 +271,8 @@ function calculateTotals(editorState, config) {
     laborCost +
     supplementaryMatCost +
     logisticsCost;
-  const markupCost = markupBase * ((config.markupPercent || 30) / 100);
+  const appliedMarkupPercent = editorState.isFamilyPricing ? (config.familyMarkupPercent || 15) : (config.markupPercent || 30);
+  const markupCost = markupBase * (appliedMarkupPercent / 100);
   const finalPrice = markupBase + markupCost;
 
   return {
@@ -282,6 +286,7 @@ function calculateTotals(editorState, config) {
     laborCost,
     supplementaryMatCost,
     logisticsCost,
+    markupPercent: appliedMarkupPercent,
     markupCost,
     finalPrice,
     totalLaborHours: editorState.labors.reduce(
@@ -397,7 +402,7 @@ export default function OrderDetailsModal({ orderId, onClose }) {
         servicesCost: 0,
         markupCost: totals.markupCost,
         failureRatePercent: config.failureRatePercent || 10,
-        markupPercent: config.markupPercent || 30,
+        markupPercent: totals.markupPercent,
         editorState,
       };
 
@@ -760,7 +765,7 @@ export default function OrderDetailsModal({ orderId, onClose }) {
                     <User className="w-4 h-4 text-zinc-500" />
                     <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-widest">Client Identity</h2>
                   </div>
-                  <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-5">
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Client Name</label>
                       <input value={editorState.clientName} onChange={(e) => updateEditorField('clientName', e.target.value)} className={fieldClass} />
@@ -768,6 +773,17 @@ export default function OrderDetailsModal({ orderId, onClose }) {
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Contact / Phone</label>
                       <input value={editorState.clientContact} onChange={(e) => updateEditorField('clientContact', e.target.value)} className={fieldClass} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Pricing Tier</label>
+                      <select
+                        value={editorState.isFamilyPricing}
+                        onChange={(e) => updateEditorField('isFamilyPricing', e.target.value === 'true')}
+                        className={fieldClass}
+                      >
+                        <option value="false">Standard Pricing</option>
+                        <option value="true">Family / Friends Pricing</option>
+                      </select>
                     </div>
                   </div>
                 </section>
@@ -1048,7 +1064,7 @@ export default function OrderDetailsModal({ orderId, onClose }) {
                       <div className="flex justify-between items-center pt-2 border-t border-zinc-100 mt-2"><span>Direct Labor</span><span className="text-zinc-900">{formatMoney(totals.laborCost)}</span></div>
                       {editorState.materials.length > 0 && <div className="flex justify-between items-center"><span>Supplementary</span><span className="text-zinc-900">{formatMoney(totals.supplementaryMatCost)}</span></div>}
                       {(readValue(editorState.packagingCost) > 0 || readValue(editorState.shippingCost) > 0 || readValue(editorState.miscellaneousCost) > 0) && <div className="flex justify-between items-center pt-2 border-t border-zinc-100 mt-2"><span>Logistics & Overheads</span><span className="text-zinc-900">{formatMoney(totals.logisticsCost)}</span></div>}
-                      {totals.markupCost > 0 && <div className="flex justify-between items-center pt-2 border-t border-zinc-100 mt-2"><span className="font-semibold text-emerald-600">Markup Profit <span className="text-xs font-normal">({config.markupPercent}%)</span></span><span className="text-emerald-700 font-semibold">+{formatMoney(totals.markupCost)}</span></div>}
+                      {totals.markupCost > 0 && <div className="flex justify-between items-center pt-2 border-t border-zinc-100 mt-2"><span className="font-semibold text-emerald-600">Markup Profit <span className="text-xs font-normal">({totals.markupPercent}%)</span></span><span className="text-emerald-700 font-semibold">+{formatMoney(totals.markupCost)}</span></div>}
                     </div>
 
                     <div className="pt-2 flex flex-col items-end">

@@ -122,7 +122,7 @@ export default function ConfigurationsView({ config, onSave, isLoading, isSaving
           <Settings className="w-4 h-4 text-zinc-500" />
           <h3 className="text-sm font-semibold text-zinc-900 uppercase tracking-widest">Margins & Depreciation</h3>
         </div>
-        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Machine Wear & Tear</label>
             <div className="relative">
@@ -141,6 +141,13 @@ export default function ConfigurationsView({ config, onSave, isLoading, isSaving
             <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Markup Profit Margin</label>
             <div className="relative">
               <input type="number" name="markupPercent" value={localConfig.markupPercent || 30} onChange={handleNum} disabled={isLoading || isSaving} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-md text-sm font-medium text-zinc-900" />
+              <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs">%</span>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Family Markup Margin</label>
+            <div className="relative">
+              <input type="number" name="familyMarkupPercent" value={localConfig.familyMarkupPercent || 15} onChange={handleNum} disabled={isLoading || isSaving} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-md text-sm font-medium text-zinc-900" />
               <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs">%</span>
             </div>
           </div>
