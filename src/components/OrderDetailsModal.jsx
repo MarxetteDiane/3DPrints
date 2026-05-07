@@ -335,12 +335,12 @@ function buildMaterialUsageMap(editorState) {
   return usage;
 }
 
-export default function OrderDetailsModal({ orderId, onClose }) {
+export default function OrderDetailsModal({ orderId, onClose, initialIsEditing = false }) {
   const queryClient = useQueryClient();
   const [config] = useState(() => getStoredConfig());
   const [inventoryMaterials, setInventoryMaterials] = useState([]);
   const [inventoryFilaments, setInventoryFilaments] = useState([]);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(initialIsEditing);
   const [editorState, setEditorState] = useState(null);
 
   const { data, isLoading, isError } = useQuery({
@@ -361,6 +361,13 @@ export default function OrderDetailsModal({ orderId, onClose }) {
     },
     enabled: !!orderId,
   });
+
+  // Initialize editor state if starting in edit mode
+  useEffect(() => {
+    if (initialIsEditing && data && !editorState) {
+      setEditorState(toEditorState(data, config));
+    }
+  }, [initialIsEditing, data, config, editorState]);
 
   useEffect(() => {
     let cancelled = false;

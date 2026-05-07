@@ -1,12 +1,25 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
-import { FileText, TrendingUp, Users, Printer, Clock, MoreHorizontal, CheckCircle2 } from 'lucide-react';
+import { FileText, TrendingUp, Users, Printer, Clock, MoreHorizontal, CheckCircle2, Pencil, XCircle, Trash2 } from 'lucide-react';
 import OrderDetailsModal from './OrderDetailsModal';
 
 export default function MetricsView() {
   const [selectedOrderId, setSelectedOrderId] = useState(null);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const menuRef = useRef(null);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Optimized parallel fetch using React Query
   const { data, isPending, isError, error: queryError, refetch } = useQuery({
@@ -19,7 +32,7 @@ export default function MetricsView() {
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select('*, clients(*), items(name)')
-        .neq('status', 'Completed')
+        .not('status', 'in', '("Completed", "Cancelled")')
         .order('created_at', { ascending: false })
         .limit(50);
         
@@ -57,7 +70,7 @@ export default function MetricsView() {
         if (!old) return old;
         return {
           ...old,
-          orders: nextStatus === 'Completed' 
+          orders: (nextStatus === 'Completed' || nextStatus === 'Cancelled')
             ? old.orders.filter(o => o.id !== id)
             : old.orders.map(o => o.id === id ? { ...o, status: nextStatus } : o)
         };
@@ -74,8 +87,36 @@ export default function MetricsView() {
     }
   });
 
+  // Hard delete mutation for cancelling orders
+  const deleteMutation = useMutation({
+    mutationFn: async (id) => {
+      const { error } = await supabase.from('orders').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['dashboard-data'] });
+      const previousData = queryClient.getQueryData(['dashboard-data']);
+      
+      queryClient.setQueryData(['dashboard-data'], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          orders: old.orders.filter(o => o.id !== id)
+        };
+      });
+
+      return { previousData };
+    },
+    onError: (err, variables, context) => {
+      queryClient.setQueryData(['dashboard-data'], context.previousData);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
+    }
+  });
+
   const cycleStatus = (id, currentStatus) => {
-    const statuses = ['Pending', 'Printing', 'Post-Processing', 'Completed'];
+    const statuses = ['Pending', 'Printing', 'Post-Processing', 'Awaiting Payment', 'For Delivery', 'Completed'];
     const nextIndex = (statuses.indexOf(currentStatus) + 1) % statuses.length;
     statusMutation.mutate({ id, nextStatus: statuses[nextIndex] });
   };
@@ -86,6 +127,8 @@ export default function MetricsView() {
       case 'Pending': colorClass = 'bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-200'; break;
       case 'Printing': colorClass = 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200'; break;
       case 'Post-Processing': colorClass = 'bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-200'; break;
+      case 'Awaiting Payment': colorClass = 'bg-rose-100 text-rose-700 border-rose-200 hover:bg-rose-200'; break;
+      case 'For Delivery': colorClass = 'bg-indigo-100 text-indigo-700 border-indigo-200 hover:bg-indigo-200'; break;
       case 'Completed': colorClass = 'bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200'; break;
       default: colorClass = 'bg-zinc-100 text-zinc-700 border-zinc-200 hover:bg-zinc-200';
     }
@@ -215,10 +258,49 @@ export default function MetricsView() {
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     <StatusBadge status={order.status} onClick={() => cycleStatus(order.id, order.status)} />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <button className="text-zinc-400 hover:text-zinc-900 transition-colors tooltip" title="Manage Order">
+                  <td className="px-6 py-4 whitespace-nowrap text-right relative">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuId(openMenuId === order.id ? null : order.id);
+                      }}
+                      className="text-zinc-400 hover:text-zinc-900 transition-colors tooltip p-1 rounded-full hover:bg-zinc-100" 
+                      title="Manage Order"
+                    >
                       <MoreHorizontal className="w-5 h-5 ml-auto" />
                     </button>
+                    
+                    {openMenuId === order.id && (
+                      <div 
+                        ref={menuRef}
+                        className="absolute right-6 top-10 w-36 bg-white border border-zinc-200 rounded shadow-xl z-30 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button 
+                          onClick={() => {
+                            setSelectedOrderId(order.id);
+                            setIsEditing(true);
+                            setOpenMenuId(null);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 flex items-center gap-2"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          Edit Order
+                        </button>
+                        <button 
+                          onClick={() => {
+                            if (confirm('Are you sure you want to PERMANENTLY DELETE this order? This action cannot be undone.')) {
+                              deleteMutation.mutate(order.id);
+                            }
+                            setOpenMenuId(null);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-zinc-100"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Delete Order
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -239,7 +321,11 @@ export default function MetricsView() {
       {selectedOrderId && (
         <OrderDetailsModal 
           orderId={selectedOrderId} 
-          onClose={() => setSelectedOrderId(null)} 
+          initialIsEditing={isEditing}
+          onClose={() => {
+            setSelectedOrderId(null);
+            setIsEditing(false);
+          }} 
         />
       )}
     </div>

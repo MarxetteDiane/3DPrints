@@ -2,6 +2,7 @@ import { supabase } from '../supabaseClient';
 
 export const INVENTORY_FILAMENTS_TABLE = 'inventory_filaments';
 export const INVENTORY_MATERIALS_TABLE = 'inventory_materials';
+export const INVENTORY_EXPENSES_TABLE = 'inventory_expenses';
 
 export function mapFilamentRowToState(row) {
   return {
@@ -82,6 +83,23 @@ export async function fetchInventoryMaterials() {
   const materials = (data || []).map(mapMaterialRowToState);
   syncInventoryCache({ materials });
   return materials;
+}
+
+export async function fetchInventoryExpenses() {
+  const { data, error } = await supabase
+    .from(INVENTORY_EXPENSES_TABLE)
+    .select('*')
+    .order('date', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(row => ({
+    id: row.id,
+    date: row.date,
+    itemName: row.item_name,
+    category: row.category,
+    cost: Number(row.cost),
+    payer: row.payer,
+    notes: row.notes,
+  }));
 }
 
 export async function adjustInventoryStock({ filamentDeltaById = {}, materialDeltaById = {} }) {

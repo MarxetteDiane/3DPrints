@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Pencil, Check, X, Package, Layers, AlertTriangle, ShoppingCart, Receipt, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, Package, Layers, AlertTriangle, ShoppingCart, Receipt, RotateCcw, Wallet } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import {
   INVENTORY_FILAMENTS_TABLE,
   INVENTORY_MATERIALS_TABLE,
+  INVENTORY_EXPENSES_TABLE,
   fetchInventoryFilaments,
   fetchInventoryMaterials,
+  fetchInventoryExpenses,
   mapFilamentStateToRow,
   mapMaterialStateToRow,
   syncInventoryCache,
 } from '../lib/inventory';
 
-const FILAMENT_TYPES = ['PLA Basic', 'PLA Glow', 'PETG', 'ABS', 'TPU'];
+const FILAMENT_TYPES = ['PLA Basic', 'PLA Glow', 'PLA Marble', 'PETG', 'ABS', 'TPU'];
 const FILAMENT_BRANDS = ['Bambu Lab', 'eSun'];
 
 const DEFAULT_FILAMENTS = [
@@ -77,6 +79,7 @@ function mapHistoryEntryToRow(entry) {
     new_cost_per_kg: entry.newCostPerKg ?? null,
     prev_weight_grams: entry.prevWeightGrams ?? null,
     new_weight_grams: entry.newWeightGrams ?? null,
+    payer: entry.payer || '',
   };
 }
 
@@ -102,6 +105,7 @@ function mapHistoryRowToEntry(row) {
     newCostPerKg: row.new_cost_per_kg,
     prevWeightGrams: row.prev_weight_grams,
     newWeightGrams: row.new_weight_grams,
+    payer: row.payer || '',
   };
 }
 
@@ -116,6 +120,7 @@ function FilamentRow({ filament, onUpdate, onDelete, onRestock }) {
   const [restocking, setRestocking] = useState(false);
   const [restockGrams, setRestockGrams] = useState('');
   const [restockCost, setRestockCost] = useState('');
+  const [restockPayer, setRestockPayer] = useState('');
 
   const handleSave = () => {
     onUpdate(draft);
@@ -153,9 +158,11 @@ function FilamentRow({ filament, onUpdate, onDelete, onRestock }) {
       newCostPerKg: Math.round(newAvgCostPerKg * 100) / 100,
       prevWeightGrams: filament.weightGrams,
       newWeightGrams: newTotalGrams,
+      payer: restockPayer,
     });
     setRestockGrams('');
     setRestockCost('');
+    setRestockPayer('');
     setRestocking(false);
   };
 
@@ -297,6 +304,16 @@ function FilamentRow({ filament, onUpdate, onDelete, onRestock }) {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Payer</label>
+                <input
+                  type="text" placeholder="Who paid?"
+                  value={restockPayer}
+                  onChange={e => setRestockPayer(e.target.value)}
+                  className="w-32 text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
+                />
+              </div>
+
               {restockGramsNum > 0 && (
                 <div className="text-xs text-zinc-500 bg-white border border-zinc-200 rounded px-3 py-1.5 space-y-0.5">
                   <div>New stock: <strong className="text-zinc-800">{newTotalGrams.toLocaleString()}g</strong></div>
@@ -333,6 +350,7 @@ function MaterialRow({ material, onUpdate, onDelete, onRestock }) {
   const [restocking, setRestocking] = useState(false);
   const [restockQty, setRestockQty] = useState('');
   const [restockCost, setRestockCost] = useState('');
+  const [restockPayer, setRestockPayer] = useState('');
 
   useEffect(() => {
     setDraft(normalizeMaterial(material));
@@ -380,9 +398,11 @@ function MaterialRow({ material, onUpdate, onDelete, onRestock }) {
       newCostPerUnit: roundedCostPerUnit,
       prevQuantity: normalizedMaterial.quantity,
       newQuantity: newTotalQty,
+      payer: restockPayer,
     });
     setRestockQty('');
     setRestockCost('');
+    setRestockPayer('');
     setRestocking(false);
   };
 
@@ -467,6 +487,16 @@ function MaterialRow({ material, onUpdate, onDelete, onRestock }) {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Payer</label>
+                <input
+                  type="text" placeholder="Who paid?"
+                  value={restockPayer}
+                  onChange={e => setRestockPayer(e.target.value)}
+                  className="w-32 text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
+                />
+              </div>
+
               {restockQtyNum > 0 && (
                 <div className="text-xs text-zinc-500 bg-white border border-zinc-200 rounded px-3 py-1.5 space-y-0.5">
                   <div>New stock: <strong className="text-zinc-800">{newTotalQty.toLocaleString()} {normalizedMaterial.unit}</strong></div>
@@ -486,12 +516,116 @@ function MaterialRow({ material, onUpdate, onDelete, onRestock }) {
     </>
   );
 }
+
+function ExpenseRow({ expense, onUpdate, onDelete }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(expense);
+
+  const handleSave = () => {
+    onUpdate(draft);
+    setEditing(false);
+  };
+
+  const handleCancel = () => {
+    setDraft(expense);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <tr className="bg-zinc-50 border-b border-zinc-100">
+        <td className="px-4 py-2">
+          <input
+            type="date"
+            className="w-full text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+            value={draft.date ? new Date(draft.date).toISOString().split('T')[0] : ''}
+            onChange={e => setDraft(d => ({ ...d, date: new Date(e.target.value).toISOString() }))}
+          />
+        </td>
+        <td className="px-4 py-2">
+          <input
+            className="w-full text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+            value={draft.itemName}
+            onChange={e => setDraft(d => ({ ...d, itemName: e.target.value }))}
+            placeholder="Item Name"
+          />
+        </td>
+        <td className="px-4 py-2">
+          <input
+            className="w-full text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+            value={draft.category}
+            onChange={e => setDraft(d => ({ ...d, category: e.target.value }))}
+            placeholder="Category"
+          />
+        </td>
+        <td className="px-4 py-2">
+          <div className="relative">
+            <input
+              type="number" min="0"
+              className="w-full text-sm border border-zinc-300 rounded px-2 py-1 pr-10 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+              value={draft.cost}
+              onChange={e => setDraft(d => ({ ...d, cost: Number(e.target.value) }))}
+            />
+            <span className="absolute inset-y-0 right-2 flex items-center text-zinc-400 text-xs pointer-events-none">PHP</span>
+          </div>
+        </td>
+        <td className="px-4 py-2">
+          <input
+            className="w-full text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+            value={draft.payer}
+            onChange={e => setDraft(d => ({ ...d, payer: e.target.value }))}
+            placeholder="Payer"
+          />
+        </td>
+        <td className="px-4 py-2">
+          <input
+            className="w-full text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+            value={draft.notes}
+            onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))}
+            placeholder="Notes"
+          />
+        </td>
+        <td className="px-4 py-2">
+          <div className="flex gap-1">
+            <button onClick={handleSave} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"><Check className="w-4 h-4" /></button>
+            <button onClick={handleCancel} className="p-1.5 text-zinc-400 hover:bg-zinc-100 rounded transition-colors"><X className="w-4 h-4" /></button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr className="border-b border-zinc-100 hover:bg-zinc-50/70 transition-colors bg-white">
+      <td className="px-4 py-3 text-xs text-zinc-500 whitespace-nowrap">
+        {new Date(expense.date).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}
+      </td>
+      <td className="px-4 py-3 text-sm font-semibold text-zinc-800">{expense.itemName}</td>
+      <td className="px-4 py-3 text-xs text-zinc-500">
+        <span className="bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full">{expense.category}</span>
+      </td>
+      <td className="px-4 py-3 text-sm font-bold text-zinc-900">
+        PHP {expense.cost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      </td>
+      <td className="px-4 py-3 text-sm text-zinc-600">{expense.payer}</td>
+      <td className="px-4 py-3 text-xs text-zinc-400 max-w-[140px] truncate">{expense.notes || '-'}</td>
+      <td className="px-4 py-3">
+        <div className="flex gap-1">
+          <button onClick={() => setEditing(true)} className="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
+          <button onClick={() => onDelete(expense.id)} className="p-1.5 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+        </div>
+      </td>
+    </tr>
+  );
+}
 export default function InventoryView() {
   const [filaments, setFilaments] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [inventoryLoading, setInventoryLoading] = useState(true);
   const [purchaseHistory, setPurchaseHistory] = useState([]);
   const [purchaseHistoryLoading, setPurchaseHistoryLoading] = useState(true);
+  const [expenses, setExpenses] = useState([]);
+  const [expensesLoading, setExpensesLoading] = useState(true);
   const [activeSection, setActiveSection] = useState('filaments');
 
   useEffect(() => {
@@ -584,7 +718,20 @@ export default function InventoryView() {
       }
     };
 
+    const loadExpenses = async () => {
+      setExpensesLoading(true);
+      try {
+        const dbExpenses = await fetchInventoryExpenses();
+        if (!cancelled) setExpenses(dbExpenses);
+      } catch (error) {
+        console.error('Failed to load expenses from Supabase:', error);
+      } finally {
+        if (!cancelled) setExpensesLoading(false);
+      }
+    };
+
     loadInventory();
+    loadExpenses();
 
     return () => {
       cancelled = true;
@@ -644,15 +791,35 @@ export default function InventoryView() {
         .select('*')
         .order('date', { ascending: false });
 
+      const { data: expensesData, error: expensesError } = await supabase
+        .from(INVENTORY_EXPENSES_TABLE)
+        .select('*')
+        .order('date', { ascending: false });
+
       if (cancelled) return;
 
-      if (refreshError) {
-        console.error('Failed to refresh purchase history from Supabase:', refreshError);
-        setPurchaseHistory(data || []);
-      } else {
-        setPurchaseHistory((refreshedData || []).map(mapHistoryRowToEntry));
+      let historyEntries = (refreshedData || []).map(mapHistoryRowToEntry);
+
+      if (!expensesError && expensesData) {
+        const expenseEntries = expensesData.map(row => ({
+          id: `exp-${row.id}`,
+          originalId: row.id,
+          date: row.date,
+          itemLabel: row.item_name,
+          itemType: 'expense',
+          itemCategory: row.category,
+          purchaseCost: Number(row.cost),
+          payer: row.payer,
+          notes: row.notes,
+          isExpense: true
+        }));
+        historyEntries = [...historyEntries, ...expenseEntries];
       }
 
+      // Sort combined list by date descending
+      historyEntries.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      setPurchaseHistory(historyEntries);
       setPurchaseHistoryLoading(false);
     };
 
@@ -931,13 +1098,128 @@ export default function InventoryView() {
     }
   };
 
+  // --- Expenses CRUD ---
+
+  const addExpense = () => {
+    console.log('Attempting to add expense to table:', INVENTORY_EXPENSES_TABLE);
+    supabase
+      .from(INVENTORY_EXPENSES_TABLE)
+      .insert({
+        date: new Date().toISOString(),
+        item_name: 'New Expense',
+        category: 'Hardware',
+        cost: 0,
+        payer: '',
+        notes: '',
+      })
+      .select('*')
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Failed to add expense to Supabase:', error);
+          window.alert(`Error adding expense: ${error.message || 'Unknown error'}`);
+          return;
+        }
+
+        if (!data || data.length === 0) {
+          console.error('No data returned from insert');
+          return;
+        }
+
+        const newRow = data[0];
+        const newExpense = {
+          id: newRow.id,
+          date: newRow.date,
+          itemName: newRow.item_name,
+          category: newRow.category,
+          cost: Number(newRow.cost),
+          payer: newRow.payer,
+          notes: newRow.notes,
+        };
+        setExpenses(prev => [newExpense, ...prev]);
+
+        // Also update purchase history
+        setPurchaseHistory(prev => [{
+          id: `exp-${newRow.id}`,
+          originalId: newRow.id,
+          date: newRow.date,
+          itemLabel: newRow.item_name,
+          itemType: 'expense',
+          itemCategory: newRow.category,
+          purchaseCost: Number(newRow.cost),
+          payer: newRow.payer,
+          notes: newRow.notes,
+          isExpense: true
+        }, ...prev].sort((a, b) => new Date(b.date) - new Date(a.date)));
+      });
+  };
+
+  const updateExpense = (updated) => {
+    supabase
+      .from(INVENTORY_EXPENSES_TABLE)
+      .update({
+        date: updated.date,
+        item_name: updated.itemName,
+        category: updated.category,
+        cost: updated.cost,
+        payer: updated.payer,
+        notes: updated.notes,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', updated.id)
+      .then(({ error }) => {
+        if (error) {
+          console.error('Failed to update expense in Supabase:', error);
+          window.alert(`Error updating expense: ${error.message}`);
+          return;
+        }
+        setExpenses(prev => prev.map(e => e.id === updated.id ? updated : e));
+
+        // Also update purchase history
+        setPurchaseHistory(prev => prev.map(h => {
+          if (h.isExpense && h.originalId === updated.id) {
+            return {
+              ...h,
+              date: updated.date,
+              itemLabel: updated.itemName,
+              itemCategory: updated.category,
+              purchaseCost: updated.cost,
+              payer: updated.payer,
+              notes: updated.notes,
+            };
+          }
+          return h;
+        }).sort((a, b) => new Date(b.date) - new Date(a.date)));
+      });
+  };
+
+  const deleteExpense = (id) => {
+    if (window.confirm('Remove this expense?')) {
+      supabase
+        .from(INVENTORY_EXPENSES_TABLE)
+        .delete()
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) {
+            console.error('Failed to delete expense from Supabase:', error);
+            return;
+          }
+          setExpenses(prev => prev.filter(e => e.id !== id));
+
+          // Also update purchase history
+          setPurchaseHistory(prev => prev.filter(h => !(h.isExpense && h.originalId === id)));
+        });
+    }
+  };
+
   // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Stats ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 
   const totalFilamentWeight = filaments.reduce((s, f) => s + f.weightGrams, 0);
   const lowFilaments = filaments.filter(f => f.weightGrams <= LOW_STOCK_THRESHOLD_GRAMS).length;
   const totalMatQty = materials.reduce((s, m) => s + m.quantity, 0);
   const lowMaterials = materials.filter(m => m.quantity <= LOW_STOCK_THRESHOLD_QTY).length;
-  const totalSpent = purchaseHistory.reduce((s, h) => s + (h.purchaseCost || 0), 0);
+  const totalSpentHistory = purchaseHistory.filter(h => !h.isExpense).reduce((s, h) => s + (h.purchaseCost || 0), 0);
+  const totalSpentExpenses = expenses.reduce((s, e) => s + (e.cost || 0), 0);
+  const totalSpent = totalSpentHistory + totalSpentExpenses;
 
   return (
     <div className="space-y-6">
@@ -990,6 +1272,12 @@ export default function InventoryView() {
           className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors ${activeSection === 'materials' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
         >
           Materials &amp; Hardware
+        </button>
+        <button
+          onClick={() => setActiveSection('expenses')}
+          className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors flex items-center gap-1.5 ${activeSection === 'expenses' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
+        >
+          <Wallet className="w-3.5 h-3.5" /> Other Expenses
         </button>
         <button
           onClick={() => setActiveSection('history')}
@@ -1122,6 +1410,62 @@ export default function InventoryView() {
         </section>
       )}
 
+      {/* --- Expenses Table --- */}
+      {activeSection === 'expenses' && (
+        <section className="bg-white border border-zinc-200 shadow-sm rounded-lg overflow-hidden">
+          <div className="px-5 py-4 border-b border-zinc-200 flex items-center justify-between bg-zinc-50">
+            <div className="flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-zinc-500" />
+              <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-widest">Other Expenses</h2>
+              <span className="text-xs text-zinc-400 font-normal normal-case tracking-normal">(printers, tools, repairs, etc.)</span>
+            </div>
+            <button
+              onClick={addExpense}
+              className="text-xs font-medium text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 px-2 py-1 rounded transition-colors flex items-center gap-1 shadow-sm"
+            >
+              <Plus className="w-3 h-3" /> Add Expense
+            </button>
+          </div>
+
+          {expensesLoading ? (
+            <div className="p-8 text-center text-zinc-400 text-sm border-b border-zinc-100">
+              Loading expenses...
+            </div>
+          ) : expenses.length === 0 ? (
+            <div className="p-8 text-center text-zinc-400 text-sm border-b border-zinc-100">
+              No expenses recorded. Add one above.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-zinc-200 bg-zinc-50/70">
+                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Date</th>
+                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Item</th>
+                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Category</th>
+                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Cost</th>
+                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Payer</th>
+                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Notes</th>
+                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {expenses.map(e => (
+                    <ExpenseRow key={e.id} expense={e} onUpdate={updateExpense} onDelete={deleteExpense} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="px-5 py-3 border-t border-zinc-100 bg-zinc-50/50 flex justify-end">
+            <span className="text-xs text-zinc-400 font-medium">
+              Total other expenses: <strong className="text-zinc-700">PHP {totalSpentExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+            </span>
+          </div>
+        </section>
+      )}
+
       {/* Purchase History Table */}
       {activeSection === 'history' && (
         <section className="bg-white border border-zinc-200 shadow-sm rounded-lg overflow-hidden">
@@ -1154,19 +1498,44 @@ export default function InventoryView() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-zinc-200 bg-zinc-50/70">
-                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Date</th>
-                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Item</th>
-                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Type</th>
-                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Added</th>
-                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Cost Paid</th>
-                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Batch Rate</th>
-                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-500">New Avg</th>
-                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Stock After</th>
-                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Actions</th>
+                    <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Date</th>
+                    <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Item</th>
+                    <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Type</th>
+                    <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Added</th>
+                    <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Cost</th>
+                    <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-zinc-500">Payer</th>
+                    <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-zinc-500">New Avg / Stock</th>
+                    <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-zinc-500 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {purchaseHistory.map(h => {
+                    if (h.isExpense) {
+                      return (
+                        <tr key={h.id} className="border-b border-zinc-100 hover:bg-zinc-50/70 transition-colors bg-white">
+                          <td className="px-6 py-4 text-xs text-zinc-500 whitespace-nowrap">
+                            <span className="font-semibold text-zinc-700">{new Date(h.date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}</span>
+                            <span className="block text-[10px] text-zinc-400">{new Date(h.date).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</span>
+                          </td>
+                          <td className="px-6 py-4 text-sm font-bold text-zinc-900">{h.itemLabel}</td>
+                          <td className="px-6 py-4">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 bg-zinc-100 px-1.5 py-0.5 rounded">
+                              {h.itemCategory}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-zinc-400 font-medium">-</td>
+                          <td className="px-6 py-4 text-sm font-black text-zinc-900">
+                            {h.purchaseCost > 0 ? `PHP ${h.purchaseCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-zinc-600 font-medium">{h.payer || '-'}</td>
+                          <td className="px-6 py-4 text-xs text-zinc-400">-</td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-tighter">Expense</span>
+                          </td>
+                        </tr>
+                      );
+                    }
+
                     const isFilamentEntry = typeof h.gramsAdded === 'number';
                     const itemLabel = h.itemLabel || h.filamentLabel || 'Unknown item';
                     const itemTypeLabel = isFilamentEntry ? 'Filament' : (h.itemCategory || 'Material');
@@ -1179,40 +1548,47 @@ export default function InventoryView() {
                     const canUndo = canUndoHistoryEntry(h);
                     return (
                       <tr key={h.id} className="border-b border-zinc-100 hover:bg-zinc-50/70 transition-colors bg-white">
-                        <td className="px-4 py-3 text-xs text-zinc-500 whitespace-nowrap">
-                          {new Date(h.date).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}
-                          <span className="block text-zinc-400">{new Date(h.date).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</span>
+                        <td className="px-6 py-4 text-xs text-zinc-500 whitespace-nowrap">
+                          <span className="font-semibold text-zinc-700">{new Date(h.date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}</span>
+                          <span className="block text-[10px] text-zinc-400">{new Date(h.date).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</span>
                         </td>
-                        <td className="px-4 py-3 text-sm font-semibold text-zinc-800">{itemLabel}</td>
-                        <td className="px-4 py-3 text-xs text-zinc-500">{itemTypeLabel}</td>
-                        <td className="px-4 py-3 text-sm text-zinc-700 font-medium">+{quantityAdded.toLocaleString()} {unitLabel}</td>
-                        <td className="px-4 py-3 text-sm font-bold text-zinc-900">
-                          {h.purchaseCost > 0 ? `PHP ${h.purchaseCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                        <td className="px-6 py-4 text-sm font-bold text-zinc-900">{itemLabel}</td>
+                        <td className="px-6 py-4 text-xs text-zinc-500 font-medium">{itemTypeLabel}</td>
+                        <td className="px-6 py-4 text-sm text-zinc-700 font-bold">+{quantityAdded.toLocaleString()}{unitLabel}</td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-black text-zinc-900">
+                            {h.purchaseCost > 0 ? `PHP ${h.purchaseCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                          </div>
+                          {h.purchaseCost > 0 && (
+                            <div className="text-[10px] text-zinc-400 font-medium">PHP {batchCostPerKg.toFixed(2)}/{averageUnitLabel}</div>
+                          )}
                         </td>
-                        <td className="px-4 py-3 text-xs text-zinc-500">
-                          {h.purchaseCost > 0 ? `PHP ${batchCostPerKg.toFixed(2)}/${averageUnitLabel}` : '-'}
+                        <td className="px-6 py-4 text-sm text-zinc-600 font-medium">{h.payer || '-'}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md w-fit">
+                              AVG: PHP {(isFilamentEntry ? h.newCostPerKg : h.newCostPerUnit).toFixed(2)}
+                            </span>
+                            <span className="text-[10px] text-zinc-500">
+                              Stock: {stockAfter.toLocaleString()}{unitLabel}
+                            </span>
+                          </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                            PHP {(isFilamentEntry ? h.newCostPerKg : h.newCostPerUnit).toFixed(2)}/{averageUnitLabel}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-zinc-600">{stockAfter.toLocaleString()} {unitLabel}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => undoHistoryEntry(h)}
                               disabled={!canUndo}
                               title={canUndo ? 'Undo this purchase and roll back inventory' : 'Undo is only available while this entry matches the current stock state'}
-                              className="text-xs font-medium text-zinc-600 bg-white border border-zinc-200 hover:bg-zinc-50 px-2 py-1 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                              className="p-1.5 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-md transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
                             >
-                              <RotateCcw className="w-3 h-3" /> Undo
+                              <RotateCcw className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => voidHistoryEntry(h.id)}
-                              className="text-xs font-medium text-red-500 hover:text-red-700 hover:bg-red-50 border border-red-200 px-2 py-1 rounded transition-colors flex items-center gap-1"
+                              className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
                             >
-                              <Trash2 className="w-3 h-3" /> Void
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </td>
