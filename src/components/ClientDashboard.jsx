@@ -4,8 +4,9 @@ import MetricsView from './MetricsView';
 import ConfigurationsView from './ConfigurationsView';
 import CompletedOrdersView from './CompletedOrdersView';
 import InventoryView from './InventoryView';
+import FinancialReportView from './FinancialReportView';
 import { supabase } from '../supabaseClient';
-import { ChevronRight, Search, Menu, Settings, Box, Factory, LogOut, Archive, Package } from 'lucide-react';
+import { ChevronRight, Search, Menu, Settings, Box, Factory, LogOut, Archive, Package, BarChart3 } from 'lucide-react';
 
 const DEFAULT_SYSTEM_CONFIG = {
   baseCostRate: 14.16,
@@ -196,6 +197,14 @@ export default function ClientDashboard() {
           </button>
 
           <button 
+            onClick={() => setActiveTab('Financials')}
+            className={`w-full flex items-center px-2 sm:px-3 py-2 rounded transition-colors group ${activeTab === 'Financials' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'}`}
+          >
+            <BarChart3 className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
+            <span className="ml-3 font-medium text-sm hidden sm:block">Financial Report</span>
+          </button>
+
+          <button 
             onClick={() => setActiveTab('Configurations')}
             className={`w-full flex items-center px-2 sm:px-3 py-2 rounded transition-colors group ${activeTab === 'Configurations' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'}`}
           >
@@ -286,6 +295,8 @@ export default function ClientDashboard() {
             {activeTab === 'Archives' && <CompletedOrdersView />}
 
             {activeTab === 'Inventory' && <InventoryView />}
+            
+            {activeTab === 'Financials' && <FinancialReportView />}
             
             {activeTab === 'Configurations' && (
               <ConfigurationsView
