@@ -5,8 +5,9 @@ import ConfigurationsView from './ConfigurationsView';
 import CompletedOrdersView from './CompletedOrdersView';
 import InventoryView from './InventoryView';
 import FinancialReportView from './FinancialReportView';
+import ProductGalleryView from './ProductGalleryView';
 import { supabase } from '../supabaseClient';
-import { ChevronRight, Search, Menu, Settings, Box, Factory, LogOut, Archive, Package, BarChart3 } from 'lucide-react';
+import { ChevronRight, Search, Menu, Settings, Box, Factory, LogOut, Archive, Package, BarChart3, Image } from 'lucide-react';
 
 const DEFAULT_SYSTEM_CONFIG = {
   baseCostRate: 14.16,
@@ -189,6 +190,14 @@ export default function ClientDashboard() {
           </button>
 
           <button 
+            onClick={() => setActiveTab('Gallery')}
+            className={`w-full flex items-center px-2 sm:px-3 py-2 rounded transition-colors group ${activeTab === 'Gallery' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'}`}
+          >
+            <Image className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
+            <span className="ml-3 font-medium text-sm hidden sm:block">Recipe Gallery</span>
+          </button>
+
+          <button 
             onClick={() => setActiveTab('Inventory')}
             className={`w-full flex items-center px-2 sm:px-3 py-2 rounded transition-colors group ${activeTab === 'Inventory' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'}`}
           >
@@ -224,9 +233,9 @@ export default function ClientDashboard() {
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-zinc-200 h-16 flex items-center justify-around px-2 z-50 shadow-lg">
         <MobileTabButton active={activeTab === 'Dashboard'} onClick={() => setActiveTab('Dashboard')} icon={Box} label="Dash" />
         <MobileTabButton active={activeTab === 'Calculator'} onClick={() => setActiveTab('Calculator')} icon={Calculator} label="Price" />
+        <MobileTabButton active={activeTab === 'Gallery'} onClick={() => setActiveTab('Gallery')} icon={Image} label="Gallery" />
         <MobileTabButton active={activeTab === 'Inventory'} onClick={() => setActiveTab('Inventory')} icon={Package} label="Stock" />
         <MobileTabButton active={activeTab === 'Financials'} onClick={() => setActiveTab('Financials')} icon={BarChart3} label="Money" />
-        <MobileTabButton active={activeTab === 'Configurations'} onClick={() => setActiveTab('Configurations')} icon={Settings} label="Set" />
       </nav>
 
       {/* Main Content Pane */}
@@ -302,6 +311,18 @@ export default function ClientDashboard() {
             {activeTab === 'Dashboard' && <MetricsView />}
             
             {activeTab === 'Archives' && <CompletedOrdersView />}
+
+            {activeTab === 'Gallery' && (
+              <ProductGalleryView 
+                config={systemConfig}
+                onLoadTemplate={(template) => {
+                  setActiveTab('Calculator');
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('load-calculator-template', { detail: template }));
+                  }, 100);
+                }} 
+              />
+            )}
 
             {activeTab === 'Inventory' && <InventoryView />}
             

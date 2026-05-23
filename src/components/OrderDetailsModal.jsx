@@ -117,16 +117,16 @@ function toEditorState(order, config) {
       plates:
         persisted.plates?.length > 0
           ? persisted.plates.map((plate) => ({
-              ...plate,
-              id: plate.id || makeId('plate'),
-              filaments:
-                plate.filaments?.length > 0
-                  ? plate.filaments.map((filament) => ({
-                      ...filament,
-                      id: filament.id || makeId('filament'),
-                    }))
-                  : [createFilament()],
-            }))
+            ...plate,
+            id: plate.id || makeId('plate'),
+            filaments:
+              plate.filaments?.length > 0
+                ? plate.filaments.map((filament) => ({
+                  ...filament,
+                  id: filament.id || makeId('filament'),
+                }))
+                : [createFilament()],
+          }))
           : [createPlate()],
       materials:
         persisted.materials?.map((material) => ({
@@ -142,7 +142,13 @@ function toEditorState(order, config) {
       shippingCost: persisted.shippingCost ?? 0,
       miscellaneousCost: persisted.miscellaneousCost ?? 0,
       isFamilyPricing: persisted.isFamilyPricing || false,
+      imageUrl: item.image_url || persisted.imageUrl || '',
       customFinalPrice: snapshot.customFinalPrice ?? '',
+      pricingMode: persisted.pricingMode || snapshot.pricingMode || 'dynamic',
+      fixedStandardPrice: persisted.fixedStandardPrice !== undefined ? Number(persisted.fixedStandardPrice) : (snapshot.fixedStandardPrice !== undefined ? Number(snapshot.fixedStandardPrice) : 0),
+      fixedFamilyPrice: persisted.fixedFamilyPrice !== undefined ? Number(persisted.fixedFamilyPrice) : (snapshot.fixedFamilyPrice !== undefined ? Number(snapshot.fixedFamilyPrice) : 0),
+      fixedQuantity: persisted.fixedQuantity !== undefined ? Number(persisted.fixedQuantity) : (snapshot.fixedQuantity !== undefined ? Number(snapshot.fixedQuantity) : 1),
+      addToGallery: persisted.addToGallery !== false && snapshot.addToGallery !== false,
     };
   }
 
@@ -198,7 +204,13 @@ function toEditorState(order, config) {
     shippingCost: 0,
     miscellaneousCost: 0,
     isFamilyPricing: false,
+    imageUrl: item.image_url || persisted.imageUrl || '',
     customFinalPrice: snapshot.customFinalPrice ?? '',
+    pricingMode: snapshot.pricingMode || 'dynamic',
+    fixedStandardPrice: snapshot.fixedStandardPrice !== undefined ? Number(snapshot.fixedStandardPrice) : 0,
+    fixedFamilyPrice: snapshot.fixedFamilyPrice !== undefined ? Number(snapshot.fixedFamilyPrice) : 0,
+    fixedQuantity: snapshot.fixedQuantity !== undefined ? Number(snapshot.fixedQuantity) : 1,
+    addToGallery: snapshot.addToGallery !== false,
   };
 }
 
@@ -273,10 +285,17 @@ function calculateTotals(editorState, config) {
     laborCost +
     supplementaryMatCost +
     logisticsCost;
-  const appliedMarkupPercent = editorState.isFamilyPricing ? (config.familyMarkupPercent || 15) : (config.markupPercent || 30);
-  const markupCost = markupBase * (appliedMarkupPercent / 100);
-  const calculatedPrice = markupBase + markupCost;
-  const finalPrice = editorState.customFinalPrice !== '' ? Number(editorState.customFinalPrice) : calculatedPrice;
+  const isFamily = editorState.isFamilyPricing === true || editorState.isFamilyPricing === 'family';
+  const isFree = editorState.isFamilyPricing === 'free';
+  const isFixedMode = editorState.pricingMode === 'fixed';
+  const appliedMarkupPercent = isFree ? 0 : (isFamily ? (config.familyMarkupPercent || 15) : (config.markupPercent || 30));
+  
+  const calculatedPrice = isFixedMode
+    ? (isFree ? 0 : (isFamily ? Number(editorState.fixedFamilyPrice || 0) : Number(editorState.fixedStandardPrice || 0)))
+    : (isFree ? 0 : Math.round((markupBase + (markupBase * (appliedMarkupPercent / 100))) * 100) / 100);
+
+  const markupCost = isFree ? 0 : (isFixedMode ? Math.max(0, calculatedPrice - markupBase) : (markupBase * (appliedMarkupPercent / 100)));
+  const finalPrice = isFree ? 0 : (editorState.customFinalPrice !== '' ? Math.round(Number(editorState.customFinalPrice) * 100) / 100 : calculatedPrice);
 
   return {
     totalKWh,
@@ -342,6 +361,57 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
   const [inventoryFilaments, setInventoryFilaments] = useState([]);
   const [isEditing, setIsEditing] = useState(initialIsEditing);
   const [editorState, setEditorState] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 400;
+        const MAX_HEIGHT = 400;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Compress as JPEG at 0.6 quality
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
+        setEditorState((current) => ({ ...current, imageUrl: compressedBase64 }));
+        setUploadingImage(false);
+      };
+      img.onerror = () => {
+        alert('Failed to load image for compression.');
+        setUploadingImage(false);
+      };
+      img.src = event.target.result;
+    };
+    reader.onerror = () => {
+      alert('Failed to read image file.');
+      setUploadingImage(false);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['order-details', orderId],
@@ -414,8 +484,20 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
         markupCost: totals.markupCost,
         failureRatePercent: config.failureRatePercent || 10,
         markupPercent: totals.markupPercent,
-        customFinalPrice: editorState.customFinalPrice !== '' ? Number(editorState.customFinalPrice) : null,
-        editorState,
+        customFinalPrice: editorState.customFinalPrice !== '' ? Math.round(Number(editorState.customFinalPrice) * 100) / 100 : null,
+        pricingMode: editorState.pricingMode || 'dynamic',
+        fixedStandardPrice: Number(editorState.fixedStandardPrice || 0),
+        fixedFamilyPrice: Number(editorState.fixedFamilyPrice || 0),
+        fixedQuantity: Number(editorState.fixedQuantity || 1),
+        addToGallery: editorState.addToGallery !== false,
+        editorState: {
+          ...editorState,
+          pricingMode: editorState.pricingMode || 'dynamic',
+          fixedStandardPrice: Number(editorState.fixedStandardPrice || 0),
+          fixedFamilyPrice: Number(editorState.fixedFamilyPrice || 0),
+          fixedQuantity: Number(editorState.fixedQuantity || 1),
+          addToGallery: editorState.addToGallery !== false,
+        },
       };
 
       const clientPayload = {
@@ -432,19 +514,32 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
       };
 
       const orderPayload = {
-        total_price: totals.finalPrice,
+        total_price: Math.round(totals.finalPrice * 100) / 100,
         financial_breakdown: financialBreakdown,
       };
 
-      const [clientResult, itemResult, orderResult] = await Promise.all([
-        supabase.from('clients').update(clientPayload).eq('id', client.id),
-        supabase.from('items').update(itemPayload).eq('id', item.id),
-        supabase.from('orders').update(orderPayload).eq('id', orderId),
-      ]);
-
+      const clientResult = await supabase.from('clients').update(clientPayload).eq('id', client.id);
       if (clientResult.error) throw clientResult.error;
-      if (itemResult.error) throw itemResult.error;
+
+      const orderResult = await supabase.from('orders').update(orderPayload).eq('id', orderId);
       if (orderResult.error) throw orderResult.error;
+
+      // Try updating items with image_url column. If the DDL has not run, catch and fallback!
+      try {
+        const itemResult = await supabase.from('items').update({
+          ...itemPayload,
+          image_url: editorState.imageUrl || null
+        }).eq('id', item.id);
+        if (itemResult.error) {
+          console.warn('Supabase items.image_url column missing, saving without image_url:', itemResult.error);
+          const fallbackResult = await supabase.from('items').update(itemPayload).eq('id', item.id);
+          if (fallbackResult.error) throw fallbackResult.error;
+        }
+      } catch (err) {
+        console.warn('Caught items.image_url column update exception, saving without image_url:', err);
+        const fallbackResult = await supabase.from('items').update(itemPayload).eq('id', item.id);
+        if (fallbackResult.error) throw fallbackResult.error;
+      }
     },
     onSuccess: async () => {
       reconcileInventoryStock();
@@ -487,13 +582,13 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
       plates: current.plates.map((plate) =>
         plate.id === plateId
           ? {
-              ...plate,
-              filaments: plate.filaments.map((filament) =>
-                filament.id === filamentId
-                  ? { ...filament, [field]: value }
-                  : filament,
-              ),
-            }
+            ...plate,
+            filaments: plate.filaments.map((filament) =>
+              filament.id === filamentId
+                ? { ...filament, [field]: value }
+                : filament,
+            ),
+          }
           : plate,
       ),
     }));
@@ -506,17 +601,17 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
       plates: current.plates.map((plate) =>
         plate.id === plateId
           ? {
-              ...plate,
-              filaments: plate.filaments.map((filament) =>
-                filament.id === filamentId
-                  ? {
-                      ...filament,
-                      inventoryId: selected ? selected.id : '',
-                      costPerKg: selected ? selected.costPerKg : filament.costPerKg,
-                    }
-                  : filament,
-              ),
-            }
+            ...plate,
+            filaments: plate.filaments.map((filament) =>
+              filament.id === filamentId
+                ? {
+                  ...filament,
+                  inventoryId: selected ? selected.id : '',
+                  costPerKg: selected ? selected.costPerKg : filament.costPerKg,
+                }
+                : filament,
+            ),
+          }
           : plate,
       ),
     }));
@@ -556,12 +651,12 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
       plates: current.plates.map((plate) =>
         plate.id === plateId
           ? {
-              ...plate,
-              filaments:
-                plate.filaments.length > 1
-                  ? plate.filaments.filter((filament) => filament.id !== filamentId)
-                  : plate.filaments,
-            }
+            ...plate,
+            filaments:
+              plate.filaments.length > 1
+                ? plate.filaments.filter((filament) => filament.id !== filamentId)
+                : plate.filaments,
+          }
           : plate,
       ),
     }));
@@ -590,18 +685,18 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
       materials: current.materials.map((material) =>
         material.id === materialId
           ? {
-              ...material,
-              inventoryId: selected ? selected.id : '',
-              name: selected ? selected.name : material.name,
-              unit: selected ? (selected.unit || '') : material.unit,
-              costPerUnit: selected
-                ? Number(
-                    selected.costPerUnit ??
-                      (((Number(selected.bulkPrice) || 0) /
-                        Math.max(1, Number(selected.quantity) || 1)) || 0),
-                  )
-                : material.costPerUnit,
-            }
+            ...material,
+            inventoryId: selected ? selected.id : '',
+            name: selected ? selected.name : material.name,
+            unit: selected ? (selected.unit || '') : material.unit,
+            costPerUnit: selected
+              ? Number(
+                selected.costPerUnit ??
+                (((Number(selected.bulkPrice) || 0) /
+                  Math.max(1, Number(selected.quantity) || 1)) || 0),
+              )
+              : material.costPerUnit,
+          }
           : material,
       ),
     }));
@@ -789,12 +884,16 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Pricing Tier</label>
                       <select
-                        value={editorState.isFamilyPricing}
-                        onChange={(e) => updateEditorField('isFamilyPricing', e.target.value === 'true')}
+                        value={String(editorState.isFamilyPricing)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateEditorField('isFamilyPricing', val === 'true' ? true : val === 'false' ? false : val);
+                        }}
                         className={fieldClass}
                       >
-                        <option value="false">Standard Pricing</option>
+                        <option value="free">Free / Print Test</option>
                         <option value="true">Family / Friends Pricing</option>
+                        <option value="false">Standard Pricing</option>
                       </select>
                     </div>
                   </div>
@@ -804,9 +903,138 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                   <div className="px-5 py-4 border-b border-zinc-200">
                     <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-widest">1. Object Specification</h2>
                   </div>
-                  <div className="p-5">
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Item Name</label>
-                    <input value={editorState.itemName} onChange={(e) => updateEditorField('itemName', e.target.value)} className={fieldClass} />
+                  <div className="p-5 space-y-4">
+                    <div>
+                       <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Item Name</label>
+                       <input value={editorState.itemName} onChange={(e) => updateEditorField('itemName', e.target.value)} className={fieldClass} />
+                     </div>
+
+                     {/* Pricing Mode Selection */}
+                     <div className="border-t border-zinc-100 pt-4">
+                       <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Pricing Mode</label>
+                       <div className="flex gap-2 p-1 bg-zinc-100 rounded-lg max-w-sm mb-4">
+                         <button
+                           type="button"
+                           onClick={() => updateEditorField('pricingMode', 'dynamic')}
+                           className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md transition-all ${
+                             editorState.pricingMode === 'dynamic' || !editorState.pricingMode
+                               ? 'bg-white text-zinc-900 shadow-sm'
+                               : 'text-zinc-500 hover:text-zinc-950'
+                           }`}
+                         >
+                           📊 Calculated Estimate
+                         </button>
+                         <button
+                           type="button"
+                           onClick={() => updateEditorField('pricingMode', 'fixed')}
+                           className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md transition-all ${
+                             editorState.pricingMode === 'fixed'
+                               ? 'bg-white text-zinc-900 shadow-sm'
+                               : 'text-zinc-500 hover:text-zinc-950'
+                           }`}
+                         >
+                           🏷️ Fixed Catalog Price
+                         </button>
+                       </div>
+
+                       {editorState.pricingMode === 'fixed' && (
+                         <div className="grid grid-cols-3 gap-4 bg-zinc-50 border border-zinc-200/60 rounded-xl p-4 animate-in slide-in-from-top-1 duration-200">
+                           <div>
+                             <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Quantity</label>
+                             <input
+                               type="number"
+                               value={editorState.fixedQuantity === 0 ? '' : editorState.fixedQuantity}
+                               onChange={(e) => updateEditorField('fixedQuantity', e.target.value === '' ? 0 : Number(e.target.value))}
+                               placeholder="e.g., 1"
+                               className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-bold"
+                             />
+                           </div>
+                           <div>
+                             <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Fixed Standard (PHP)</label>
+                             <input
+                               type="number"
+                               value={editorState.fixedStandardPrice === 0 ? '' : editorState.fixedStandardPrice}
+                               onChange={(e) => updateEditorField('fixedStandardPrice', e.target.value === '' ? 0 : Number(e.target.value))}
+                               placeholder="e.g., 500"
+                               className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-bold"
+                             />
+                           </div>
+                           <div>
+                             <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Fixed Family (PHP)</label>
+                             <input
+                               type="number"
+                               value={editorState.fixedFamilyPrice === 0 ? '' : editorState.fixedFamilyPrice}
+                               onChange={(e) => updateEditorField('fixedFamilyPrice', e.target.value === '' ? 0 : Number(e.target.value))}
+                               placeholder="e.g., 350"
+                               className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-bold"
+                             />
+                           </div>
+                           <p className="col-span-3 text-[10px] text-zinc-400 font-medium italic mt-1 leading-normal">
+                             * Internal production costs (materials, labor, wear & tear) will still be tracked for exact margin reporting, but standard and family tier billable totals are locked to these pre-sets.
+                           </p>
+                         </div>
+                       )}
+                     </div>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Product Photo</label>
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap gap-2.5 items-center">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            id="modal-image-uploader"
+                            className="hidden"
+                            onChange={handleImageFileChange}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => document.getElementById('modal-image-uploader').click()}
+                            disabled={uploadingImage}
+                            className="px-3.5 py-1.5 bg-zinc-900 hover:bg-black text-white text-xs font-bold rounded-lg transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                          >
+                            {uploadingImage ? 'Compressing...' : 'Upload Image File'}
+                          </button>
+                          <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">or paste link below:</span>
+                        </div>
+
+                        <div className="flex gap-4 items-start">
+                          <input 
+                            value={editorState.imageUrl || ''} 
+                            onChange={(e) => updateEditorField('imageUrl', e.target.value)} 
+                            placeholder="https://images.unsplash.com/... or paste image URL"
+                            className={fieldClass} 
+                          />
+                          {editorState.imageUrl && (
+                            <div className="w-12 h-12 rounded-md border border-zinc-200 overflow-hidden bg-zinc-50 shrink-0 shadow-sm flex items-center justify-center relative group">
+                              <img src={editorState.imageUrl} alt="preview" className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
+                              <button
+                                type="button"
+                                onClick={() => updateEditorField('imageUrl', '')}
+                                className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-[10px] text-white font-bold"
+                                title="Clear photo"
+                              >
+                                Clear
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Gallery Inclusion Switch */}
+                    <div className="border-t border-zinc-100 pt-4 flex items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        id="modal-addToGallery"
+                        checked={editorState.addToGallery !== false}
+                        onChange={(e) => updateEditorField('addToGallery', e.target.checked)}
+                        className="w-4 h-4 rounded text-zinc-900 border-zinc-300 focus:ring-zinc-900 focus:ring-opacity-50 accent-zinc-900 cursor-pointer"
+                      />
+                      <label htmlFor="modal-addToGallery" className="text-xs font-bold text-zinc-700 cursor-pointer select-none">
+                        Add this product to the Product Gallery
+                      </label>
+                    </div>
+
                   </div>
                 </section>
 
@@ -1099,14 +1327,14 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
 
                     <div className="pt-2 flex flex-col items-end">
                       <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1">Override Final Sell Price (Optional)</span>
-                      <input 
-                         type="number" 
-                         min="0" 
-                         step="0.01" 
-                         placeholder={`Calc: PHP ${formatMoney(totals.calculatedPrice)}`}
-                         value={editorState.customFinalPrice} 
-                         onChange={e => updateEditorField('customFinalPrice', e.target.value)} 
-                         className="w-48 px-3 py-1.5 text-right bg-zinc-50 border border-zinc-200 rounded-md text-sm font-medium mb-4 focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors"
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder={`Calc: PHP ${formatMoney(totals.calculatedPrice)}`}
+                        value={editorState.customFinalPrice}
+                        onChange={e => updateEditorField('customFinalPrice', e.target.value)}
+                        className="w-48 px-3 py-1.5 text-right bg-zinc-50 border border-zinc-200 rounded-md text-sm font-medium mb-4 focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors"
                       />
                       <span className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-1">Total Billable</span>
                       <div className="flex items-baseline gap-1">

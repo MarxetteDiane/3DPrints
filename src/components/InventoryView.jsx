@@ -115,7 +115,9 @@ const LOW_STOCK_THRESHOLD_QTY = 5;
 // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Inline editable row ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 
 function FilamentRow({ filament, onUpdate, onDelete, onRestock }) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(() => {
+    return !filament.color && filament.weightGrams === 0 && filament.costPerKg === 0;
+  });
   const [draft, setDraft] = useState(filament);
   const [restocking, setRestocking] = useState(false);
   const [restockGrams, setRestockGrams] = useState('');
@@ -123,13 +125,29 @@ function FilamentRow({ filament, onUpdate, onDelete, onRestock }) {
   const [restockPayer, setRestockPayer] = useState('');
 
   const handleSave = () => {
+    if (!draft.color.trim()) {
+      alert("Please enter a filament color before saving.");
+      return;
+    }
+    if (draft.weightGrams <= 0) {
+      alert("Please enter a valid weight in grams.");
+      return;
+    }
+    if (draft.costPerKg <= 0) {
+      alert("Please enter a valid cost per kg.");
+      return;
+    }
     onUpdate(draft);
     setEditing(false);
   };
 
   const handleCancel = () => {
-    setDraft(filament);
-    setEditing(false);
+    if (!filament.color && filament.weightGrams === 0 && filament.costPerKg === 0) {
+      onDelete(filament.id);
+    } else {
+      setDraft(filament);
+      setEditing(false);
+    }
   };
 
   // Weighted average cost calculation
@@ -345,7 +363,9 @@ function FilamentRow({ filament, onUpdate, onDelete, onRestock }) {
 }
 
 function MaterialRow({ material, onUpdate, onDelete, onRestock }) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(() => {
+    return material.name === 'New Item' && Number(material.quantity) === 0 && Number(material.bulkPrice) === 0;
+  });
   const [draft, setDraft] = useState(() => normalizeMaterial(material));
   const [restocking, setRestocking] = useState(false);
   const [restockQty, setRestockQty] = useState('');
@@ -357,13 +377,29 @@ function MaterialRow({ material, onUpdate, onDelete, onRestock }) {
   }, [material]);
 
   const handleSave = () => {
+    if (!draft.name.trim() || draft.name === 'New Item') {
+      alert("Please enter a valid, unique name for the material item.");
+      return;
+    }
+    if (draft.quantity <= 0) {
+      alert("Please enter a valid quantity.");
+      return;
+    }
+    if (draft.bulkPrice <= 0) {
+      alert("Please enter a valid bulk purchase price.");
+      return;
+    }
     onUpdate(normalizeMaterial(draft));
     setEditing(false);
   };
 
   const handleCancel = () => {
-    setDraft(normalizeMaterial(material));
-    setEditing(false);
+    if (material.name === 'New Item' && Number(material.quantity) === 0 && Number(material.bulkPrice) === 0) {
+      onDelete(material.id);
+    } else {
+      setDraft(normalizeMaterial(material));
+      setEditing(false);
+    }
   };
 
   const normalizedMaterial = normalizeMaterial(material);
@@ -416,11 +452,12 @@ function MaterialRow({ material, onUpdate, onDelete, onRestock }) {
           <input className="w-full text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900" value={draft.category} onChange={e => setDraft(d => ({ ...d, category: e.target.value }))} placeholder="Category" />
         </td>
         <td className="px-4 py-2">
-          <input type="number" min="0" className="w-full text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900" value={draft.quantity} onChange={e => setDraft(d => ({ ...d, quantity: Number(e.target.value) }))} />
+          <div className="flex gap-1.5 items-center">
+            <input type="number" min="0" className="w-20 text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900 font-bold" value={draft.quantity} onChange={e => setDraft(d => ({ ...d, quantity: Number(e.target.value) }))} placeholder="Qty" />
+            <input className="w-16 text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900" value={draft.unit} onChange={e => setDraft(d => ({ ...d, unit: e.target.value }))} placeholder="unit (e.g. pcs)" />
+          </div>
         </td>
-        <td className="px-4 py-2">
-          <input className="w-full text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900" value={draft.unit} onChange={e => setDraft(d => ({ ...d, unit: e.target.value }))} placeholder="unit" />
-        </td>
+        <td className="px-4 py-2 hidden"></td>
         <td className="px-4 py-2">
           <div className="relative">
             <input type="number" min="0" className="w-full text-sm border border-zinc-300 rounded px-2 py-1 pr-10 focus:outline-none focus:ring-1 focus:ring-zinc-900" value={draft.bulkPrice ?? ''} onChange={e => setDraft(d => ({ ...d, bulkPrice: Number(e.target.value) }))} />
@@ -518,17 +555,31 @@ function MaterialRow({ material, onUpdate, onDelete, onRestock }) {
 }
 
 function ExpenseRow({ expense, onUpdate, onDelete }) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(() => {
+    return expense.itemName === 'New Expense' && Number(expense.cost) === 0;
+  });
   const [draft, setDraft] = useState(expense);
 
   const handleSave = () => {
+    if (!draft.itemName.trim() || draft.itemName === 'New Expense') {
+      alert("Please enter a valid expense item name.");
+      return;
+    }
+    if (draft.cost <= 0) {
+      alert("Please enter a valid cost amount.");
+      return;
+    }
     onUpdate(draft);
     setEditing(false);
   };
 
   const handleCancel = () => {
-    setDraft(expense);
-    setEditing(false);
+    if (expense.itemName === 'New Expense' && Number(expense.cost) === 0) {
+      onDelete(expense.id);
+    } else {
+      setDraft(expense);
+      setEditing(false);
+    }
   };
 
   if (editing) {
@@ -618,6 +669,353 @@ function ExpenseRow({ expense, onUpdate, onDelete }) {
     </tr>
   );
 }
+
+function getFilamentColorHex(colorName) {
+  const color = (colorName || '').toLowerCase().trim();
+  if (color.includes('white') || color.includes('clear') || color.includes('translucent')) {
+    return { bg: 'bg-zinc-100 border-zinc-300', fill: '#f4f4f5', text: 'text-zinc-600', gradient: 'from-zinc-100 to-white' };
+  }
+  if (color.includes('black') || color.includes('carbon') || color.includes('dark grey')) {
+    return { bg: 'bg-zinc-900 border-zinc-950', fill: '#18181b', text: 'text-zinc-300', gradient: 'from-zinc-950 to-zinc-800' };
+  }
+  if (color.includes('grey') || color.includes('gray') || color.includes('silver')) {
+    return { bg: 'bg-zinc-500 border-zinc-600', fill: '#a1a1aa', text: 'text-white', gradient: 'from-zinc-600 to-zinc-400' };
+  }
+  if (color.includes('red')) {
+    return { bg: 'bg-red-600 border-red-700', fill: '#ef4444', text: 'text-white', gradient: 'from-red-700 to-red-500' };
+  }
+  if (color.includes('blue')) {
+    return { bg: 'bg-blue-600 border-blue-700', fill: '#3b82f6', text: 'text-white', gradient: 'from-blue-700 to-blue-500' };
+  }
+  if (color.includes('green')) {
+    return { bg: 'bg-emerald-600 border-emerald-700', fill: '#10b981', text: 'text-white', gradient: 'from-emerald-700 to-emerald-500' };
+  }
+  if (color.includes('yellow')) {
+    return { bg: 'bg-yellow-400 border-yellow-500', fill: '#facc15', text: 'text-zinc-900', gradient: 'from-yellow-500 to-yellow-300' };
+  }
+  if (color.includes('orange')) {
+    return { bg: 'bg-orange-500 border-orange-600', fill: '#f97316', text: 'text-white', gradient: 'from-orange-600 to-orange-400' };
+  }
+  if (color.includes('purple')) {
+    return { bg: 'bg-purple-600 border-purple-700', fill: '#a855f7', text: 'text-white', gradient: 'from-purple-700 to-purple-500' };
+  }
+  if (color.includes('pink')) {
+    return { bg: 'bg-pink-500 border-pink-600', fill: '#ec4899', text: 'text-white', gradient: 'from-pink-600 to-pink-400' };
+  }
+  if (color.includes('gold') || color.includes('brass') || color.includes('bronze')) {
+    return { bg: 'bg-amber-600 border-amber-700', fill: '#fbbf24', text: 'text-zinc-950', gradient: 'from-amber-600 to-yellow-500' };
+  }
+  
+  return { bg: 'bg-indigo-500 border-indigo-600', fill: '#6366f1', text: 'text-white', gradient: 'from-indigo-600 to-indigo-400' };
+}
+
+// Visual Spool Card Component representing physical spool
+function SpoolCard({ filament, onUpdate, onDelete, onRestock }) {
+  const [editing, setEditing] = useState(() => {
+    return !filament.color && filament.weightGrams === 0 && filament.costPerKg === 0;
+  });
+  const [draft, setDraft] = useState(filament);
+  const [restocking, setRestocking] = useState(false);
+  const [restockGrams, setRestockGrams] = useState('');
+  const [restockCost, setRestockCost] = useState('');
+  const [restockPayer, setRestockPayer] = useState('');
+
+  const isLow = filament.weightGrams <= LOW_STOCK_THRESHOLD_GRAMS;
+  const percent = Math.min(100, Math.max(0, (filament.weightGrams / 1000) * 100));
+  const swatch = getFilamentColorHex(filament.color);
+
+  const handleSave = () => {
+    if (!draft.color.trim()) {
+      alert("Please enter a filament color before saving.");
+      return;
+    }
+    if (draft.weightGrams <= 0) {
+      alert("Please enter a valid weight in grams.");
+      return;
+    }
+    if (draft.costPerKg <= 0) {
+      alert("Please enter a valid cost per kg.");
+      return;
+    }
+    onUpdate(draft);
+    setEditing(false);
+  };
+
+  const handleCancel = () => {
+    if (!filament.color && filament.weightGrams === 0 && filament.costPerKg === 0) {
+      onDelete(filament.id);
+    } else {
+      setDraft(filament);
+      setEditing(false);
+    }
+  };
+
+  const restockGramsNum = parseFloat(restockGrams) || 0;
+  const restockCostNum = parseFloat(restockCost) || 0;
+  const currentValuePHP = (filament.weightGrams / 1000) * filament.costPerKg;
+  const newTotalGrams = filament.weightGrams + restockGramsNum;
+  const newTotalValuePHP = currentValuePHP + restockCostNum;
+  const newAvgCostPerKg = newTotalGrams > 0 ? (newTotalValuePHP / (newTotalGrams / 1000)) : filament.costPerKg;
+
+  const handleRestockConfirm = () => {
+    if (restockGramsNum <= 0) return;
+    const updatedFilament = {
+      ...filament,
+      weightGrams: newTotalGrams,
+      costPerKg: Math.round(newAvgCostPerKg * 100) / 100,
+    };
+    onUpdate(updatedFilament);
+    onRestock?.({
+      date: new Date().toISOString(),
+      filamentId: filament.id,
+      filamentLabel: `${filament.type || filament.name}${filament.color ? ' - ' + filament.color : ''}${filament.brand ? ' (' + filament.brand + ')' : ''}`,
+      gramsAdded: restockGramsNum,
+      purchaseCost: restockCostNum,
+      prevCostPerKg: filament.costPerKg,
+      newCostPerKg: Math.round(newAvgCostPerKg * 100) / 100,
+      prevWeightGrams: filament.weightGrams,
+      newWeightGrams: newTotalGrams,
+      payer: restockPayer,
+    });
+    setRestockGrams('');
+    setRestockCost('');
+    setRestockPayer('');
+    setRestocking(false);
+  };
+
+  if (editing) {
+    return (
+      <div className="bg-zinc-50 border border-zinc-300 rounded-xl p-4 shadow-md space-y-3 flex flex-col justify-between min-h-[300px] animate-in zoom-in-95 duration-150">
+        <div className="space-y-2">
+          <div>
+            <label className="block text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-0.5">Type</label>
+            <select
+              className="w-full text-xs border border-zinc-200 rounded px-2 py-1.5 bg-white font-medium focus:ring-1 focus:ring-zinc-900"
+              value={draft.type}
+              onChange={e => setDraft(d => ({ ...d, type: e.target.value }))}
+            >
+              {FILAMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-0.5">Brand</label>
+            <select
+              className="w-full text-xs border border-zinc-200 rounded px-2 py-1.5 bg-white font-medium focus:ring-1 focus:ring-zinc-900"
+              value={draft.brand}
+              onChange={e => setDraft(d => ({ ...d, brand: e.target.value }))}
+            >
+              <option value="">- select -</option>
+              {FILAMENT_BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-0.5">Color</label>
+            <input
+              className="w-full text-xs border border-zinc-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-zinc-900"
+              value={draft.color}
+              onChange={e => setDraft(d => ({ ...d, color: e.target.value }))}
+              placeholder="Color"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-0.5">Weight (g)</label>
+              <input
+                type="number" min="0"
+                className="w-full text-xs border border-zinc-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-zinc-900"
+                value={draft.weightGrams}
+                onChange={e => setDraft(d => ({ ...d, weightGrams: Number(e.target.value) }))}
+              />
+            </div>
+            <div>
+              <label className="block text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-0.5">Rate (PHP/kg)</label>
+              <input
+                type="number" min="0"
+                className="w-full text-xs border border-zinc-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-zinc-900"
+                value={draft.costPerKg}
+                onChange={e => setDraft(d => ({ ...d, costPerKg: Number(e.target.value) }))}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-0.5">Notes</label>
+            <input
+              className="w-full text-xs border border-zinc-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-zinc-900"
+              value={draft.notes}
+              onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))}
+              placeholder="Notes"
+            />
+          </div>
+        </div>
+        <div className="flex gap-2 pt-2 border-t border-zinc-200">
+          <button onClick={handleSave} className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-bold py-1.5 rounded flex items-center justify-center gap-1"><Check className="w-3.5 h-3.5" /> Save</button>
+          <button onClick={handleCancel} className="flex-1 bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-600 text-xs font-bold py-1.5 rounded flex items-center justify-center gap-1"><X className="w-3.5 h-3.5" /> Cancel</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`bg-white border rounded-xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between min-h-[300px] relative overflow-hidden group ${isLow ? 'border-amber-300 ring-2 ring-amber-500/5' : 'border-zinc-200'}`}>
+      
+      {/* Low Stock Pulsing indicator */}
+      {isLow && (
+        <div className="absolute top-3.5 right-3.5 w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" title="Low stock alert" />
+      )}
+
+      {/* Spool Info */}
+      <div>
+        <div className="flex justify-between items-start mb-0.5">
+          <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">{filament.brand || 'Generic'}</span>
+          {isLow && (
+            <span className="inline-flex items-center bg-amber-50 border border-amber-200 text-amber-700 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest scale-90 origin-right">
+              LOW
+            </span>
+          )}
+        </div>
+        <h3 className="text-sm font-bold text-zinc-950 truncate" title={filament.type}>
+          {filament.type || 'PLA'}
+        </h3>
+        <span className="text-xs text-zinc-500 font-semibold block mt-0.5">{filament.color}</span>
+      </div>
+
+      {/* SVG Spool Graphic with Filament Swatch Ring */}
+      <div className="my-4 flex items-center justify-center relative select-none">
+        <svg width="90" height="90" viewBox="0 0 100 100" className="drop-shadow-sm overflow-visible">
+          {/* Spool outer ring */}
+          <circle cx="50" cy="50" r="46" fill="none" stroke="#e4e4e7" strokeWidth="5" />
+          
+          {/* Filament wound thickness core shadow */}
+          <circle cx="50" cy="50" r="38" fill="none" stroke="#f4f4f5" strokeWidth="8" />
+
+          {/* Filament core winding swatch progress bar */}
+          <circle 
+            cx="50" 
+            cy="50" 
+            r="38" 
+            fill="none" 
+            stroke={swatch.fill} 
+            strokeWidth="8"
+            strokeDasharray="238.76"
+            strokeDashoffset={238.76 - (percent / 100) * 238.76}
+            strokeLinecap="round"
+            className="transition-all duration-1000 ease-out origin-center -rotate-90"
+          />
+
+          {/* Inner plastic cylinder hub */}
+          <circle cx="50" cy="50" r="22" fill="#ffffff" stroke="#e4e4e7" strokeWidth="1" />
+          {/* Center spindle cutout */}
+          <circle cx="50" cy="50" r="8" fill="#f4f4f5" stroke="#d4d4d8" strokeWidth="1.5" />
+        </svg>
+
+        {/* Core Weight display overlay */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-1">
+          <span className="text-xs font-black text-zinc-800 leading-none">{filament.weightGrams.toLocaleString()}g</span>
+          <span className="text-[8px] font-bold text-zinc-400 uppercase tracking-tighter mt-0.5">{percent.toFixed(0)}%</span>
+        </div>
+      </div>
+
+      {/* Spool Cost Rate & Actions */}
+      <div className="space-y-3 pt-3 border-t border-zinc-100 mt-2">
+        <div className="flex justify-between items-center text-xs font-semibold text-zinc-500">
+          <span>Cost Rate</span>
+          <span className="text-zinc-950 font-bold">PHP {filament.costPerKg.toLocaleString()}/kg</span>
+        </div>
+
+        {restocking ? (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 space-y-2.5 mt-2 animate-in zoom-in-95 duration-150">
+            <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-800 flex items-center gap-1">
+              <ShoppingCart className="w-3 h-3" /> Quick Restock
+            </div>
+            
+            <div className="grid grid-cols-2 gap-1.5">
+              <div>
+                <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-0.5">Grams</label>
+                <input
+                  type="number" min="1" placeholder="grams"
+                  value={restockGrams}
+                  onChange={e => setRestockGrams(e.target.value)}
+                  className="w-full text-xs border border-zinc-200 rounded px-1.5 py-1 bg-white font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-0.5">Cost</label>
+                <input
+                  type="number" min="0" placeholder="PHP"
+                  value={restockCost}
+                  onChange={e => setRestockCost(e.target.value)}
+                  className="w-full text-xs border border-zinc-200 rounded px-1.5 py-1 bg-white font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-0.5">Payer</label>
+              <input
+                type="text" placeholder="Who paid?"
+                value={restockPayer}
+                onChange={e => setRestockPayer(e.target.value)}
+                className="w-full text-xs border border-zinc-200 rounded px-1.5 py-1 bg-white font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              />
+            </div>
+
+            {restockGramsNum > 0 && (
+              <div className="text-[9px] text-zinc-500 bg-white border border-zinc-100 rounded p-1.5 font-medium leading-tight space-y-0.5">
+                <div>New stock: <strong className="text-zinc-800">{newTotalGrams.toLocaleString()}g</strong></div>
+                <div>Avg cost: <strong className="text-emerald-700">PHP {newAvgCostPerKg.toFixed(2)}/kg</strong></div>
+              </div>
+            )}
+
+            <div className="flex gap-1.5">
+              <button
+                onClick={handleRestockConfirm}
+                disabled={restockGramsNum <= 0}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-1 rounded transition-colors disabled:opacity-40"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={() => { setRestocking(false); setRestockGrams(''); setRestockCost(''); }}
+                className="flex-1 bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-600 text-[10px] font-bold py-1 rounded transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => { setRestocking(true); setEditing(false); }}
+              className="flex-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-bold py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 shadow-sm"
+            >
+              <ShoppingCart className="w-3.5 h-3.5" /> Restock
+            </button>
+            <button
+              onClick={() => { setEditing(true); setRestocking(false); }}
+              className="bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-zinc-600 hover:text-zinc-950 p-1.5 rounded-md transition-colors flex items-center justify-center"
+              title="Edit Spool"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => {
+                if (window.confirm("Permanently delete this spool?")) {
+                  onDelete(filament.id);
+                }
+              }}
+              className="bg-zinc-50 hover:bg-red-50 border border-zinc-200 text-zinc-300 hover:text-red-500 p-1.5 rounded-md transition-colors flex items-center justify-center"
+              title="Delete Spool"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+}
+
 export default function InventoryView() {
   const [filaments, setFilaments] = useState([]);
   const [materials, setMaterials] = useState([]);
@@ -627,6 +1025,7 @@ export default function InventoryView() {
   const [expenses, setExpenses] = useState([]);
   const [expensesLoading, setExpensesLoading] = useState(true);
   const [activeSection, setActiveSection] = useState('filaments');
+  const [filamentViewMode, setFilamentViewMode] = useState('shelf'); // Default to shelf grid
 
   useEffect(() => {
     syncInventoryCache({ filaments, materials });
@@ -882,7 +1281,7 @@ export default function InventoryView() {
   };
 
   const canUndoHistoryEntry = (entry) => {
-    const isFilamentEntry = typeof entry.gramsAdded === 'number';
+    const isFilamentEntry = entry.itemType === 'filament' || typeof entry.gramsAdded === 'number' || entry.filamentId != null;
 
     if (isFilamentEntry) {
       const filament = filaments.find(f => f.id === entry.filamentId);
@@ -906,7 +1305,7 @@ export default function InventoryView() {
       return;
     }
 
-    const isFilamentEntry = typeof entry.gramsAdded === 'number';
+    const isFilamentEntry = entry.itemType === 'filament' || typeof entry.gramsAdded === 'number' || entry.filamentId != null;
 
     if (isFilamentEntry) {
       const rollback = {
@@ -1303,12 +1702,30 @@ export default function InventoryView() {
                 </span>
               )}
             </div>
-            <button
-              onClick={addFilament}
-              className="text-xs font-medium text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 px-2 py-1 rounded transition-colors flex items-center gap-1 shadow-sm"
-            >
-              <Plus className="w-3 h-3" /> Add Filament
-            </button>
+            <div className="flex items-center gap-4">
+              {/* Segmented Controller Toggler */}
+              <div className="bg-zinc-100 p-0.5 rounded-lg flex items-center text-xs font-bold border border-zinc-200/50 shadow-inner">
+                <button
+                  onClick={() => setFilamentViewMode('shelf')}
+                  className={`px-2.5 py-1 rounded-md transition-all ${filamentViewMode === 'shelf' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
+                >
+                  Shelf View
+                </button>
+                <button
+                  onClick={() => setFilamentViewMode('table')}
+                  className={`px-2.5 py-1 rounded-md transition-all ${filamentViewMode === 'table' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
+                >
+                  Table View
+                </button>
+              </div>
+
+              <button
+                onClick={addFilament}
+                className="text-xs font-medium text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 px-2 py-1 rounded transition-colors flex items-center gap-1 shadow-sm"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Filament
+              </button>
+            </div>
           </div>
 
           {inventoryLoading ? (
@@ -1318,6 +1735,12 @@ export default function InventoryView() {
           ) : filaments.length === 0 ? (
             <div className="p-8 text-center text-zinc-400 text-sm border-b border-zinc-100">
               No filaments in inventory. Add one above.
+            </div>
+          ) : filamentViewMode === 'shelf' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 p-6 bg-zinc-50 border-b border-zinc-100">
+              {filaments.map(f => (
+                <SpoolCard key={f.id} filament={f} onUpdate={updateFilament} onDelete={deleteFilament} onRestock={addToHistory} />
+              ))}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -1536,7 +1959,7 @@ export default function InventoryView() {
                       );
                     }
 
-                    const isFilamentEntry = typeof h.gramsAdded === 'number';
+                    const isFilamentEntry = h.itemType === 'filament' || typeof h.gramsAdded === 'number' || h.filamentId != null;
                     const itemLabel = h.itemLabel || h.filamentLabel || 'Unknown item';
                     const itemTypeLabel = isFilamentEntry ? 'Filament' : (h.itemCategory || 'Material');
                     const quantityAdded = isFilamentEntry ? h.gramsAdded : (h.quantityAdded || 0);
@@ -1567,7 +1990,7 @@ export default function InventoryView() {
                         <td className="px-6 py-4">
                           <div className="flex flex-col gap-1">
                             <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md w-fit">
-                              AVG: PHP {(isFilamentEntry ? h.newCostPerKg : h.newCostPerUnit).toFixed(2)}
+                              AVG: PHP {Number((isFilamentEntry ? h.newCostPerKg : h.newCostPerUnit) || 0).toFixed(2)}
                             </span>
                             <span className="text-[10px] text-zinc-500">
                               Stock: {stockAfter.toLocaleString()}{unitLabel}

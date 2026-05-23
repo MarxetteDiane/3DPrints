@@ -11,7 +11,9 @@ import {
   Clock,
   ArrowUpRight,
   ArrowDownRight,
-  Wallet
+  Wallet,
+  ShieldAlert,
+  AlertCircle
 } from 'lucide-react';
 import { INVENTORY_EXPENSES_TABLE } from '../lib/inventory';
 
@@ -27,7 +29,11 @@ export default function FinancialReportView() {
     payerBreakdown: {},
     recentTransactions: [],
     orderCount: 0,
-    avgOrderValue: 0
+    avgOrderValue: 0,
+    monthlyProfitHistory: [],
+    categoryBreakdown: {},
+    wastedGramsTotal: 0,
+    wastedCostTotal: 0
   });
 
   useEffect(() => {
@@ -84,6 +90,84 @@ export default function FinancialReportView() {
         .sort((a, b) => new Date(b.date) - new Date(a.date))
         .slice(0, 10);
 
+      // Track 4: Calculate monthly profit trajectory for last 6 months
+      const months = [];
+      const now = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push({
+          label: d.toLocaleDateString('en-US', { month: 'short' }),
+          year: d.getFullYear(),
+          monthNum: d.getMonth(),
+          revenue: 0,
+          expense: 0,
+          profit: 0
+        });
+      }
+
+      (completedOrders || []).forEach(o => {
+        const oDate = new Date(o.created_at);
+        const match = months.find(m => m.year === oDate.getFullYear() && m.monthNum === oDate.getMonth());
+        if (match) {
+          match.revenue += Number(o.total_price) || 0;
+        }
+      });
+
+      totalExpensesList.forEach(e => {
+        const eDate = new Date(e.date);
+        const match = months.find(m => m.year === eDate.getFullYear() && m.monthNum === eDate.getMonth());
+        if (match) {
+          match.expense += Number(e.cost) || 0;
+        }
+      });
+
+      months.forEach(m => {
+        m.profit = m.revenue - m.expense;
+      });
+
+      // Calculate spending categories for Donut Chart
+      const categoryBreakdown = {
+        'Filament Restocks': 0,
+        'Materials & Hardware': 0,
+        'Waste (Failed Runs)': 0,
+        'Other Expenses': 0
+      };
+
+      (expenses || []).forEach(e => {
+        const category = e.category || 'Other';
+        const cost = Number(e.cost) || 0;
+        if (category.toLowerCase() === 'waste') {
+          categoryBreakdown['Waste (Failed Runs)'] += cost;
+        } else if (category.toLowerCase() === 'hardware' || category.toLowerCase() === 'material') {
+          categoryBreakdown['Materials & Hardware'] += cost;
+        } else {
+          categoryBreakdown['Other Expenses'] += cost;
+        }
+      });
+
+      (restocks || []).forEach(r => {
+        const cost = Number(r.purchase_cost) || 0;
+        categoryBreakdown['Filament Restocks'] += cost;
+      });
+
+      // Calculate total failed print weight and cost from DB
+      let wastedGramsTotal = 0;
+      let wastedCostTotal = 0;
+      try {
+        const { data: failedList } = await supabase.from('failed_prints').select('weight_grams, estimated_cost');
+        if (failedList && failedList.length > 0) {
+          wastedGramsTotal = failedList.reduce((sum, fp) => sum + (Number(fp.weight_grams) || 0), 0);
+          wastedCostTotal = failedList.reduce((sum, fp) => sum + (Number(fp.estimated_cost) || 0), 0);
+        } else {
+          // Fallback based on expenses Waste category
+          const loggedWasteExpenses = (expenses || []).filter(e => (e.category || '').toLowerCase() === 'waste');
+          wastedCostTotal = loggedWasteExpenses.reduce((sum, e) => sum + (Number(e.cost) || 0), 0);
+          wastedGramsTotal = wastedCostTotal / 0.7; // Fallback g estimate
+        }
+      } catch (err) {
+        console.warn(err);
+      }
+
       setReportData({
         revenue: totalRevenue,
         expenses: totalExpenses,
@@ -92,7 +176,11 @@ export default function FinancialReportView() {
         payerBreakdown,
         recentTransactions,
         orderCount: (completedOrders || []).length,
-        avgOrderValue: (completedOrders || []).length > 0 ? totalRevenue / completedOrders.length : 0
+        avgOrderValue: (completedOrders || []).length > 0 ? totalRevenue / completedOrders.length : 0,
+        monthlyProfitHistory: months,
+        categoryBreakdown,
+        wastedGramsTotal,
+        wastedCostTotal
       });
 
     } catch (error) {
@@ -160,6 +248,38 @@ export default function FinancialReportView() {
           icon={<DollarSign className="w-5 h-5 text-indigo-500" />}
           highlight={reportData.netIncome >= 0}
         />
+      </div>
+
+      {/* Track 4: Custom Interactive SVG Charts & Waste widgets */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Profit Trajectory Glowing Line/Area spline */}
+        <ProfitTrendChart months={reportData.monthlyProfitHistory} />
+
+        {/* Spending Category Donut Chart & Waste Card */}
+        <div className="space-y-6">
+          <SpendingDonutChart data={reportData.categoryBreakdown} total={reportData.expenses} />
+          
+          <div className="bg-white border border-zinc-200 rounded-xl p-4 shadow-sm flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 shrink-0">
+                <ShieldAlert className="w-5 h-5 animate-pulse" />
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">Failed Print waste loss</span>
+                <span className="text-xs text-zinc-500 font-semibold leading-tight block">Cumulative material loss in print farm</span>
+              </div>
+            </div>
+            
+            <div className="text-right">
+              <span className="text-sm font-black text-rose-600 block">
+                PHP {reportData.wastedCostTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+              <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">
+                {Math.round(reportData.wastedGramsTotal).toLocaleString()}g plastic lost
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -277,6 +397,190 @@ export default function FinancialReportView() {
               : '0.0%'}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Track 4: Spending categories visual SVG donut chart
+function SpendingDonutChart({ data, total }) {
+  const categories = Object.entries(data).filter(([, val]) => val > 0);
+  
+  if (total <= 0 || categories.length === 0) {
+    return (
+      <div className="bg-white border border-zinc-200 rounded-xl p-6 shadow-sm flex flex-col justify-center items-center h-[230px] text-center">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2">Spending Categories</h3>
+        <div className="text-zinc-400 text-xs italic">No outflows logged yet. Log spool restocks or expenses first.</div>
+      </div>
+    );
+  }
+
+  const r = 35;
+  const c = 219.91; // 2 * pi * 35
+  let accumulatedPercent = 0;
+
+  const colorPalette = {
+    'Filament Restocks': '#4f46e5',   // Indigo
+    'Materials & Hardware': '#10b981', // Emerald
+    'Waste (Failed Runs)': '#f43f5e',  // Rose
+    'Other Expenses': '#a1a1aa'       // Zinc
+  };
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-around gap-6 p-5 bg-white border border-zinc-200 rounded-xl shadow-sm h-fit sm:h-[168px]">
+      <div className="relative w-28 h-28 flex items-center justify-center shrink-0">
+        <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
+          <circle cx="50" cy="50" r={r} fill="none" stroke="#f4f4f5" strokeWidth="8" />
+          {categories.map(([name, cost], idx) => {
+            const share = cost / total;
+            const strokeLength = share * c;
+            const strokeOffset = c - strokeLength + (accumulatedPercent / 100) * c;
+            accumulatedPercent -= share * 100;
+            const color = colorPalette[name] || '#6366f1';
+            
+            return (
+              <circle
+                key={idx}
+                cx="50"
+                cy="50"
+                r={r}
+                fill="none"
+                stroke={color}
+                strokeWidth="8"
+                strokeDasharray={c}
+                strokeDashoffset={strokeOffset}
+                strokeLinecap="round"
+                className="transition-all duration-700"
+              />
+            );
+          })}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+          <span className="text-[7px] font-bold text-zinc-400 uppercase tracking-widest">Outflows</span>
+          <span className="text-[10px] font-black text-zinc-950">PHP {Math.round(total).toLocaleString()}</span>
+        </div>
+      </div>
+
+      <div className="space-y-1.5 flex-1 w-full overflow-hidden">
+        {categories.map(([name, cost], idx) => {
+          const share = (cost / total) * 100;
+          const color = colorPalette[name] || '#6366f1';
+          return (
+            <div key={idx} className="flex justify-between items-center text-xs">
+              <div className="flex items-center gap-1.5 overflow-hidden">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                <span className="font-semibold text-zinc-500 truncate text-[11px]">{name}</span>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="font-bold text-zinc-900 text-[11px]">PHP {cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                <span className="text-[8px] text-zinc-400 block font-bold leading-none">{share.toFixed(0)}%</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Track 4: Profit Trajectory Custom Area Spline chart
+function ProfitTrendChart({ months }) {
+  const [hoveredNode, setHoveredNode] = useState(null);
+  
+  if (!months || months.length === 0) {
+    return (
+      <div className="bg-white border border-zinc-200 rounded-xl p-6 shadow-sm flex flex-col justify-center items-center h-[230px] text-center">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2">Profit Trajectory</h3>
+        <div className="text-zinc-400 text-xs italic">Awaiting completed order transactions.</div>
+      </div>
+    );
+  }
+
+  const width = 500;
+  const height = 150;
+  const paddingX = 40;
+  const paddingY = 25;
+  
+  const profits = months.map(m => m.profit);
+  const maxVal = Math.max(...profits, 1500);
+  const minVal = Math.min(...profits, -500);
+  const range = maxVal - minVal;
+
+  const points = months.map((m, index) => {
+    const x = paddingX + (index * (width - paddingX * 2)) / (months.length - 1);
+    const y = height - paddingY - ((m.profit - minVal) * (height - paddingY * 2)) / (range || 1);
+    return { x, y, ...m };
+  });
+
+  const polylinePath = points.map(p => `${p.x},${p.y}`).join(' ');
+  const areaPath = `${points[0].x},${height - paddingY} ` + polylinePath + ` ${points[points.length - 1].x},${height - paddingY}`;
+
+  return (
+    <div className="relative bg-white border border-zinc-200 rounded-xl p-5 shadow-sm flex flex-col justify-between h-[242px]">
+      <div>
+        <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-0.5">Profit Trajectory</h3>
+        <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest">Month-over-month performance</p>
+      </div>
+
+      <div className="relative mt-2 flex-1 flex items-center justify-center">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
+          <defs>
+            <linearGradient id="profit-glow" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#6366f1" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#6366f1" stopOpacity="0.0" />
+            </linearGradient>
+            <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="0" dy="4" stdDeviation="3" floodColor="#6366f1" floodOpacity="0.2" />
+            </filter>
+          </defs>
+          
+          {/* Zero baseline axis grid */}
+          {minVal < 0 && (
+            <line 
+              x1={paddingX} 
+              y1={height - paddingY - ((0 - minVal) * (height - paddingY * 2)) / range} 
+              x2={width - paddingX} 
+              y2={height - paddingY - ((0 - minVal) * (height - paddingY * 2)) / range} 
+              stroke="#f4f4f5" 
+              strokeWidth="2" 
+              strokeDasharray="4 4" 
+            />
+          )}
+
+          {/* Area fill under curve */}
+          <path d={`M ${areaPath} Z`} fill="url(#profit-glow)" className="transition-all duration-500" />
+          
+          {/* Spline curve line */}
+          <polyline fill="none" stroke="#6366f1" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" points={polylinePath} filter="url(#shadow)" className="transition-all duration-500" />
+          
+          {/* Plot nodes */}
+          {points.map((p, i) => (
+            <g key={i}>
+              <circle 
+                cx={p.x} 
+                cy={p.y} 
+                r={hoveredNode?.label === p.label ? "6" : "4"} 
+                fill="#ffffff" 
+                stroke="#6366f1" 
+                strokeWidth="2.5" 
+                onMouseEnter={() => setHoveredNode(p)}
+                onMouseLeave={() => setHoveredNode(null)}
+                className="cursor-pointer transition-all duration-150" 
+              />
+              <text x={p.x} y={height - 5} textAnchor="middle" className="text-[9px] font-bold fill-zinc-400 tracking-tighter uppercase">{p.label}</text>
+            </g>
+          ))}
+        </svg>
+
+        {/* Interactive glow tooltip */}
+        {hoveredNode && (
+          <div className="absolute top-0 right-0 bg-zinc-950 text-white text-[10px] font-bold px-2.5 py-1.5 rounded border border-zinc-800 shadow-xl flex flex-col animate-in fade-in zoom-in-95 duration-100 leading-none">
+            <span className="text-[7px] text-zinc-400 uppercase tracking-widest font-black mb-1">{hoveredNode.label} Profitability</span>
+            <span className={hoveredNode.profit >= 0 ? "text-emerald-400" : "text-rose-400"}>
+              PHP {hoveredNode.profit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

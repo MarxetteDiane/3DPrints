@@ -10,6 +10,11 @@ const initialState = {
   clientName: '',
   clientPhone: '',
   itemName: '',
+  imageUrl: '',
+  pricingMode: 'dynamic',
+  fixedStandardPrice: 0,
+  fixedFamilyPrice: 0,
+  fixedQuantity: 1,
   plates: [
     {
       id: Date.now(),
@@ -25,11 +30,13 @@ const initialState = {
   shippingCost: 0,
   miscellaneousCost: 0,
   isFamilyPricing: false,
+  addToGallery: true,
 };
 
 function init(config) {
   return {
     ...initialState,
+    addToGallery: true,
     plates: [
       {
         id: Date.now(),
@@ -47,7 +54,20 @@ function formReducer(state, action) {
   switch (action.type) {
     case 'UPDATE_FIELD':
       return { ...state, [action.field]: action.value };
-      
+    case 'LOAD_TEMPLATE':
+      return {
+        ...state,
+        ...action.template,
+        clientName: action.template.clientName || state.clientName,
+        clientPhone: action.template.clientContact || action.template.clientPhone || state.clientPhone,
+        imageUrl: action.template.imageUrl || action.template.image_url || '',
+        pricingMode: action.template.pricingMode || 'dynamic',
+        fixedStandardPrice: action.template.fixedStandardPrice !== undefined ? Number(action.template.fixedStandardPrice) : 0,
+        fixedFamilyPrice: action.template.fixedFamilyPrice !== undefined ? Number(action.template.fixedFamilyPrice) : 0,
+        fixedQuantity: action.template.fixedQuantity !== undefined ? Number(action.template.fixedQuantity) : 1,
+        addToGallery: action.template.addToGallery !== false,
+      };
+
     case 'ADD_PLATE':
       return {
         ...state,
@@ -74,7 +94,7 @@ function formReducer(state, action) {
           p.id === action.id ? { ...p, [action.field]: action.value } : p
         )
       };
-      
+
     case 'ADD_PLATE_FILAMENT':
       return {
         ...state,
@@ -90,11 +110,11 @@ function formReducer(state, action) {
         plates: state.plates.map(p =>
           p.id === action.plateId
             ? {
-                ...p,
-                filaments: p.filaments.map(f =>
-                  f.id === action.filamentId ? { ...f, [action.field]: action.value } : f
-                )
-              }
+              ...p,
+              filaments: p.filaments.map(f =>
+                f.id === action.filamentId ? { ...f, [action.field]: action.value } : f
+              )
+            }
             : p
         )
       };
@@ -125,7 +145,7 @@ function formReducer(state, action) {
         ...state,
         materials: state.materials.filter(m => m.id !== action.id)
       };
-      
+
     case 'ADD_LABOR':
       return {
         ...state,
@@ -148,9 +168,34 @@ function formReducer(state, action) {
   }
 }
 
+// Binary STL parser removed as per user request to replace with image url input
+
 export default function AdvancedPriceChecker({ config }) {
   const [state, dispatch] = useReducer(formReducer, config, init);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const handleLoadTemplate = (e) => {
+      const template = e.detail;
+      if (template) {
+        dispatch({ type: 'LOAD_TEMPLATE', template });
+        
+        // Pre-fill custom final price if overridden
+        if (template.customFinalPrice !== undefined) {
+          setCustomFinalPrice(template.customFinalPrice || '');
+        } else {
+          setCustomFinalPrice('');
+        }
+        
+        alert(`Successfully loaded recipe blueprint for "${template.itemName || 'Unnamed Item'}"! You can now adjust materials or save as a new order.`);
+      }
+    };
+
+    window.addEventListener('load-calculator-template', handleLoadTemplate);
+    return () => {
+      window.removeEventListener('load-calculator-template', handleLoadTemplate);
+    };
+  }, []);
 
   const [showModal, setShowModal] = useState(false);
   const [additionalServices, setAdditionalServices] = useState({
@@ -159,6 +204,8 @@ export default function AdvancedPriceChecker({ config }) {
     assembly: false
   });
   const [customFinalPrice, setCustomFinalPrice] = useState('');
+
+  // STL States removed in favor of direct Image URL input
 
   // Read inventory filaments from localStorage (kept in sync with InventoryView)
   const [inventoryFilaments, setInventoryFilaments] = useState([]);
@@ -180,6 +227,60 @@ export default function AdvancedPriceChecker({ config }) {
       cancelled = true;
     };
   }, []);
+
+  // handleStlUpload removed
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 400;
+        const MAX_HEIGHT = 400;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Compress as JPEG at 0.6 quality
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
+        dispatch({ type: 'UPDATE_FIELD', field: 'imageUrl', value: compressedBase64 });
+        setUploadingImage(false);
+      };
+      img.onerror = () => {
+        alert('Failed to load image for compression.');
+        setUploadingImage(false);
+      };
+      img.src = event.target.result;
+    };
+    reader.onerror = () => {
+      alert('Failed to read image file.');
+      setUploadingImage(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
 
   const calcElectricityAndMaterials = () => {
     let totalKWh = 0;
@@ -203,7 +304,7 @@ export default function AdvancedPriceChecker({ config }) {
       const surgeHours = 8 / 60; // 8 minutes per plate
       let surgeKWh = 0;
       let normalKWh = 0;
-      
+
       if (totalPlateHours > 0) {
         surgeKWh = surgeHours * (config?.powerSurgeKwh || 1.3);
         const remainingHours = Math.max(0, totalPlateHours - surgeHours);
@@ -215,9 +316,9 @@ export default function AdvancedPriceChecker({ config }) {
       totalKWh += (surgeKWh + normalKWh);
 
       plate.filaments.forEach(f => {
-         const weight = Math.max(0, parseFloat(f.weight) || 0);
-         totalFilamentWeight += weight;
-         filCost += (weight / 1000) * Math.max(0, parseFloat(f.costPerKg) || 0);
+        const weight = Math.max(0, parseFloat(f.weight) || 0);
+        totalFilamentWeight += weight;
+        filCost += (weight / 1000) * Math.max(0, parseFloat(f.costPerKg) || 0);
       });
     });
 
@@ -243,9 +344,19 @@ export default function AdvancedPriceChecker({ config }) {
     (additionalServices.assembly ? (config?.assemblyCost || 350) : 0);
 
   const basePriceWithFailure = rawOpsCost + failureBufferCost + laborCost + matCost + logisticsCost + servicesCost;
-  const appliedMarkupPercent = state.isFamilyPricing ? (config?.familyMarkupPercent || 15) : (config?.markupPercent || 30);
-  const markupCost = basePriceWithFailure * (appliedMarkupPercent / 100);
-  const finalPrice = basePriceWithFailure + markupCost;
+  const isFamily = state.isFamilyPricing === true || state.isFamilyPricing === 'family';
+  const isFree = state.isFamilyPricing === 'free';
+  
+  const isFixedMode = state.pricingMode === 'fixed';
+  const appliedMarkupPercent = isFree ? 0 : (isFamily ? (config?.familyMarkupPercent || 15) : (config?.markupPercent || 30));
+  
+  const quantity = Math.max(1, parseInt(state.fixedQuantity) || 1);
+  const calculatedFinalPrice = isFixedMode
+    ? (isFree ? 0 : (isFamily ? Number(state.fixedFamilyPrice || 0) : Number(state.fixedStandardPrice || 0))) * quantity
+    : (isFree ? 0 : (basePriceWithFailure + (basePriceWithFailure * (appliedMarkupPercent / 100))));
+
+  const finalPrice = isFree ? 0 : Math.round(calculatedFinalPrice * 100) / 100;
+  const markupCost = isFree ? 0 : (isFixedMode ? Math.max(0, finalPrice - basePriceWithFailure) : (basePriceWithFailure * (appliedMarkupPercent / 100)));
 
   const handleNum = (e) => {
     const val = e.target.value === '' ? '' : Number(e.target.value);
@@ -284,6 +395,12 @@ export default function AdvancedPriceChecker({ config }) {
         clientName: state.clientName,
         clientContact: state.clientPhone,
         itemName: state.itemName,
+        imageUrl: state.imageUrl || '',
+        pricingMode: state.pricingMode || 'dynamic',
+        fixedStandardPrice: Number(state.fixedStandardPrice || 0),
+        fixedFamilyPrice: Number(state.fixedFamilyPrice || 0),
+        fixedQuantity: Number(state.fixedQuantity || 1),
+        addToGallery: state.addToGallery !== false,
         plates: state.plates,
         materials: state.materials,
         labors: state.labors,
@@ -305,9 +422,17 @@ export default function AdvancedPriceChecker({ config }) {
         markupCost: markupCost,
         failureRatePercent: config?.failureRatePercent || 10,
         markupPercent: appliedMarkupPercent,
-        customFinalPrice: customFinalPrice !== '' ? Number(customFinalPrice) : null,
+        customFinalPrice: customFinalPrice !== '' ? Math.round(Number(customFinalPrice) * 100) / 100 : null,
+        pricingMode: state.pricingMode || 'dynamic',
+        fixedStandardPrice: Number(state.fixedStandardPrice || 0),
+        fixedFamilyPrice: Number(state.fixedFamilyPrice || 0),
+        fixedQuantity: Number(state.fixedQuantity || 1),
+        addToGallery: state.addToGallery !== false,
         editorState
       };
+
+      const rawPrice = customFinalPrice !== '' ? Number(customFinalPrice) : finalPrice;
+      const roundedPrice = Math.round(rawPrice * 100) / 100;
 
       const { data: orderId, error: rpcErr } = await supabase.rpc('create_order_with_items', {
         p_client_name: state.clientName,
@@ -317,11 +442,23 @@ export default function AdvancedPriceChecker({ config }) {
         p_print_time: totalMinutes / 60,
         p_plates: state.plates.length,
         p_labor_hours: state.labors.reduce((sum, lab) => sum + parseFloat(lab.hours || 0), 0),
-        p_total_price: customFinalPrice !== '' ? Number(customFinalPrice) : finalPrice,
+        p_total_price: roundedPrice,
         p_financial_breakdown: financial_breakdown
       });
 
       if (rpcErr) throw rpcErr;
+
+      // Update image_url in items table
+      if (state.imageUrl) {
+        const { error: itemUpdateErr } = await supabase
+          .from('items')
+          .update({ image_url: state.imageUrl })
+          .eq('order_id', orderId);
+        if (itemUpdateErr) {
+          console.error('Failed to update item image URL:', itemUpdateErr);
+        }
+      }
+
       return orderId;
     },
     onSuccess: async () => {
@@ -370,12 +507,20 @@ export default function AdvancedPriceChecker({ config }) {
               <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Pricing Tier</label>
               <select
                 name="isFamilyPricing"
-                value={state.isFamilyPricing}
-                onChange={(e) => dispatch({ type: 'UPDATE_FIELD', field: 'isFamilyPricing', value: e.target.value === 'true' })}
+                value={String(state.isFamilyPricing)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  dispatch({
+                    type: 'UPDATE_FIELD',
+                    field: 'isFamilyPricing',
+                    value: val === 'true' ? true : val === 'false' ? false : val
+                  });
+                }}
                 className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900"
               >
-                <option value="false">Standard Pricing</option>
+                <option value="free">Free / Print Test</option>
                 <option value="true">Family / Friends Pricing</option>
+                <option value="false">Standard Pricing</option>
               </select>
             </div>
           </div>
@@ -386,13 +531,159 @@ export default function AdvancedPriceChecker({ config }) {
           <div className="px-5 py-4 border-b border-zinc-200">
             <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-widest">1. Object Specification</h2>
           </div>
-          <div className="p-5">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Item Name</label>
-            <input
-              type="text" name="itemName" value={state.itemName} onChange={handleText}
-              placeholder="e.g., Mechanical Keyboard Chassis"
-              className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900"
-            />
+          <div className="p-5 space-y-5">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Item Name</label>
+              <input
+                type="text" name="itemName" value={state.itemName} onChange={handleText}
+                placeholder="e.g., Mechanical Keyboard Chassis"
+                className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-medium"
+              />
+            </div>
+
+            {/* Pricing Mode Selection */}
+            <div className="border-t border-zinc-100 pt-4">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Pricing Mode</label>
+              <div className="flex gap-2 p-1 bg-zinc-100 rounded-lg max-w-sm mb-4">
+                <button
+                  type="button"
+                  onClick={() => dispatch({ type: 'UPDATE_FIELD', field: 'pricingMode', value: 'dynamic' })}
+                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md transition-all ${
+                    state.pricingMode === 'dynamic' || !state.pricingMode
+                      ? 'bg-white text-zinc-900 shadow-sm'
+                      : 'text-zinc-500 hover:text-zinc-950'
+                  }`}
+                >
+                  📊 Calculated Estimate
+                </button>
+                <button
+                  type="button"
+                  onClick={() => dispatch({ type: 'UPDATE_FIELD', field: 'pricingMode', value: 'fixed' })}
+                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md transition-all ${
+                    state.pricingMode === 'fixed'
+                      ? 'bg-white text-zinc-900 shadow-sm'
+                      : 'text-zinc-500 hover:text-zinc-950'
+                  }`}
+                >
+                  🏷️ Fixed Catalog Price
+                </button>
+              </div>
+
+              {state.pricingMode === 'fixed' && (
+                <div className="grid grid-cols-3 gap-4 bg-zinc-50 border border-zinc-200/60 rounded-xl p-4 animate-in slide-in-from-top-1 duration-200">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Quantity</label>
+                    <input
+                      type="number"
+                      name="fixedQuantity"
+                      value={state.fixedQuantity === 0 ? '' : state.fixedQuantity}
+                      onChange={handleNum}
+                      placeholder="e.g., 1"
+                      className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Fixed Standard (PHP)</label>
+                    <input
+                      type="number"
+                      name="fixedStandardPrice"
+                      value={state.fixedStandardPrice === 0 ? '' : state.fixedStandardPrice}
+                      onChange={handleNum}
+                      placeholder="e.g., 500"
+                      className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Fixed Family (PHP)</label>
+                    <input
+                      type="number"
+                      name="fixedFamilyPrice"
+                      value={state.fixedFamilyPrice === 0 ? '' : state.fixedFamilyPrice}
+                      onChange={handleNum}
+                      placeholder="e.g., 350"
+                      className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-bold"
+                    />
+                  </div>
+                  <p className="col-span-3 text-[10px] text-zinc-400 font-medium italic mt-1 leading-normal">
+                    * Internal production costs (materials, labor, wear & tear) will still be tracked for exact margin reporting, but standard and family tier billable totals are locked to these pre-sets.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Track 1: Product Photo / Image URL Zone */}
+            <div className="border-t border-zinc-100 pt-4">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">
+                Product Photo
+              </label>
+              
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2.5 items-center">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    id="calc-image-uploader"
+                    className="hidden"
+                    onChange={handleImageFileChange}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('calc-image-uploader').click()}
+                    disabled={uploadingImage}
+                    className="px-3.5 py-1.5 bg-zinc-900 hover:bg-black text-white text-xs font-bold rounded-lg transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {uploadingImage ? 'Compressing...' : 'Upload Image File'}
+                  </button>
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">or paste link below:</span>
+                </div>
+
+                <div className="flex gap-4 items-start">
+                  <input
+                    type="text"
+                    name="imageUrl"
+                    value={state.imageUrl || ''}
+                    onChange={handleText}
+                    placeholder="https://images.unsplash.com/... or paste image URL"
+                    className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-medium"
+                  />
+                  {state.imageUrl && (
+                    <div className="w-12 h-12 rounded-md border border-zinc-200 overflow-hidden bg-zinc-50 shrink-0 shadow-sm flex items-center justify-center relative group">
+                      <img
+                        src={state.imageUrl}
+                        alt="preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => dispatch({ type: 'UPDATE_FIELD', field: 'imageUrl', value: '' })}
+                        className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-[10px] text-white font-bold"
+                        title="Clear photo"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Gallery Inclusion Switch */}
+            <div className="border-t border-zinc-100 pt-4 flex items-center gap-2.5">
+              <input
+                type="checkbox"
+                id="addToGallery"
+                checked={state.addToGallery !== false}
+                onChange={(e) => dispatch({ type: 'UPDATE_FIELD', field: 'addToGallery', value: e.target.checked })}
+                className="w-4 h-4 rounded text-zinc-900 border-zinc-300 focus:ring-zinc-900 focus:ring-opacity-50 accent-zinc-900 cursor-pointer"
+              />
+              <label htmlFor="addToGallery" className="text-xs font-bold text-zinc-700 cursor-pointer select-none">
+                Add this product to the Product Gallery
+              </label>
+            </div>
+
           </div>
         </section>
 
@@ -409,21 +700,21 @@ export default function AdvancedPriceChecker({ config }) {
               <Plus className="w-3 h-3" /> Add Plate
             </button>
           </div>
-          
+
           <div className="p-5 space-y-6">
             {state.plates.map((plate, index) => (
               <div key={plate.id} className="border border-zinc-200 rounded-lg overflow-hidden bg-zinc-50/50 shadow-sm transition-all">
                 <div className="px-4 py-3 border-b border-zinc-200 bg-white flex justify-between items-center">
-                   <h3 className="text-sm font-bold tracking-tight text-zinc-800">Plate {index + 1}</h3>
-                   {state.plates.length > 1 && (
-                     <button
-                       onClick={() => dispatch({ type: 'REMOVE_PLATE', id: plate.id })}
-                       className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors tooltip relative group"
-                     >
-                       <Trash2 className="w-4 h-4" />
-                       <span className="hidden group-hover:block absolute bottom-full mb-2 right-0 whitespace-nowrap bg-zinc-800 text-white text-[10px] px-2 py-1 rounded">Remove Plate</span>
-                     </button>
-                   )}
+                  <h3 className="text-sm font-bold tracking-tight text-zinc-800">Plate {index + 1}</h3>
+                  {state.plates.length > 1 && (
+                    <button
+                      onClick={() => dispatch({ type: 'REMOVE_PLATE', id: plate.id })}
+                      className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors tooltip relative group"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span className="hidden group-hover:block absolute bottom-full mb-2 right-0 whitespace-nowrap bg-zinc-800 text-white text-[10px] px-2 py-1 rounded">Remove Plate</span>
+                    </button>
+                  )}
                 </div>
 
                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-5 border-b border-zinc-200 bg-zinc-50/50">
@@ -433,7 +724,7 @@ export default function AdvancedPriceChecker({ config }) {
                       <div className="relative">
                         <input
                           type="number" min="0" step="1"
-                          value={plate.printTimeHours} 
+                          value={plate.printTimeHours}
                           onChange={(e) => dispatch({ type: 'UPDATE_PLATE', id: plate.id, field: 'printTimeHours', value: e.target.value === '' ? '' : Number(e.target.value) })}
                           className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 text-left pr-12 font-medium"
                         />
@@ -442,7 +733,7 @@ export default function AdvancedPriceChecker({ config }) {
                       <div className="relative">
                         <input
                           type="number" min="0" max="59" step="1"
-                          value={plate.printTimeMinutes} 
+                          value={plate.printTimeMinutes}
                           onChange={(e) => dispatch({ type: 'UPDATE_PLATE', id: plate.id, field: 'printTimeMinutes', value: e.target.value === '' ? '' : Number(e.target.value) })}
                           className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 text-left pr-12 font-medium"
                         />
@@ -455,7 +746,7 @@ export default function AdvancedPriceChecker({ config }) {
                     <label className="flex items-center text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">
                       Filament Changes
                       <div className="hidden group-hover:block ml-2 w-48 bg-zinc-800 text-zinc-50 text-[11px] rounded p-1.5 text-center absolute bottom-full mb-1 left-0 shadow-lg pointer-events-none z-10 normal-case tracking-normal">
-                         Allocates {config?.filamentChangeCost || 0.1} PHP per filament change.
+                        Allocates {config?.filamentChangeCost || 0.1} PHP per filament change.
                       </div>
                     </label>
                     <div className="relative">
@@ -480,7 +771,7 @@ export default function AdvancedPriceChecker({ config }) {
                       <Plus className="w-3 h-3" /> Add Filament
                     </button>
                   </div>
-                  
+
                   <div className="space-y-3">
                     {plate.filaments.map((filament, fIndex) => (
                       <div key={filament.id} className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr_auto] gap-4 md:gap-3 items-end bg-zinc-50/50 p-4 md:p-3 rounded border border-zinc-100">
@@ -567,90 +858,90 @@ export default function AdvancedPriceChecker({ config }) {
           <div className="px-5 py-4 border-b border-zinc-200 flex items-center justify-between bg-zinc-50">
             <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-widest">3. Supplementary Items</h2>
             <button
-               onClick={() => dispatch({ type: 'ADD_MATERIAL' })}
-               className="text-xs font-medium text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 px-2 py-1 rounded transition-colors flex items-center gap-1 shadow-sm"
+              onClick={() => dispatch({ type: 'ADD_MATERIAL' })}
+              className="text-xs font-medium text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 px-2 py-1 rounded transition-colors flex items-center gap-1 shadow-sm"
             >
-               <Plus className="w-3 h-3" /> Add Item
+              <Plus className="w-3 h-3" /> Add Item
             </button>
           </div>
           <div className="p-5">
             {state.materials.length === 0 ? (
-               <div className="py-4 text-xs text-zinc-400 text-center border border-dashed border-zinc-200 rounded bg-zinc-50">
-                 No supplementary items.
-               </div>
+              <div className="py-4 text-xs text-zinc-400 text-center border border-dashed border-zinc-200 rounded bg-zinc-50">
+                No supplementary items.
+              </div>
             ) : (
-                <div className="space-y-3">
-                  {state.materials.map(mat => (
-                    <div key={mat.id} className="grid grid-cols-1 md:grid-cols-[1.7fr_0.8fr_1fr_auto] gap-4 md:gap-3 items-end bg-zinc-50 p-4 md:p-3 rounded border border-zinc-100">
-                      <div>
-                        <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Inventory Item</label>
-                        {inventoryMaterials.length > 0 ? (
-                          <select
-                            value={mat.inventoryId ?? ''}
-                            onChange={(e) => {
-                              const inv = inventoryMaterials.find(material => String(material.id) === e.target.value);
-                              if (inv) {
-                                const quantity = Math.max(1, parseFloat(mat.quantity) || 1);
-                                const unitPrice = Number(inv.costPerUnit ?? (((Number(inv.bulkPrice) || 0) / Math.max(1, Number(inv.quantity) || 1)) || 0));
-                                dispatch({ type: 'UPDATE_MATERIAL', id: mat.id, field: 'inventoryId', value: inv.id });
-                                dispatch({ type: 'UPDATE_MATERIAL', id: mat.id, field: 'name', value: inv.name });
-                                dispatch({ type: 'UPDATE_MATERIAL', id: mat.id, field: 'unit', value: inv.unit || '' });
-                                dispatch({ type: 'UPDATE_MATERIAL', id: mat.id, field: 'costPerUnit', value: unitPrice });
-                                if ((parseFloat(mat.quantity) || 0) <= 0) {
-                                  dispatch({ type: 'UPDATE_MATERIAL', id: mat.id, field: 'quantity', value: quantity });
-                                }
-                              } else {
-                                dispatch({ type: 'UPDATE_MATERIAL', id: mat.id, field: 'inventoryId', value: '' });
+              <div className="space-y-3">
+                {state.materials.map(mat => (
+                  <div key={mat.id} className="grid grid-cols-1 md:grid-cols-[1.7fr_0.8fr_1fr_auto] gap-4 md:gap-3 items-end bg-zinc-50 p-4 md:p-3 rounded border border-zinc-100">
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Inventory Item</label>
+                      {inventoryMaterials.length > 0 ? (
+                        <select
+                          value={mat.inventoryId ?? ''}
+                          onChange={(e) => {
+                            const inv = inventoryMaterials.find(material => String(material.id) === e.target.value);
+                            if (inv) {
+                              const quantity = Math.max(1, parseFloat(mat.quantity) || 1);
+                              const unitPrice = Number(inv.costPerUnit ?? (((Number(inv.bulkPrice) || 0) / Math.max(1, Number(inv.quantity) || 1)) || 0));
+                              dispatch({ type: 'UPDATE_MATERIAL', id: mat.id, field: 'inventoryId', value: inv.id });
+                              dispatch({ type: 'UPDATE_MATERIAL', id: mat.id, field: 'name', value: inv.name });
+                              dispatch({ type: 'UPDATE_MATERIAL', id: mat.id, field: 'unit', value: inv.unit || '' });
+                              dispatch({ type: 'UPDATE_MATERIAL', id: mat.id, field: 'costPerUnit', value: unitPrice });
+                              if ((parseFloat(mat.quantity) || 0) <= 0) {
+                                dispatch({ type: 'UPDATE_MATERIAL', id: mat.id, field: 'quantity', value: quantity });
                               }
-                            }}
-                            className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900"
-                          >
-                            <option value="">-- select material/hardware --</option>
-                            {inventoryMaterials.map(inv => (
-                              <option key={inv.id} value={String(inv.id)}>
-                                {inv.name}{inv.category ? ` - ${inv.category}` : ''}{inv.unit ? ` (${inv.unit})` : ''}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <div className="px-3 py-2 bg-zinc-50 border border-dashed border-zinc-200 rounded-md text-xs text-zinc-400 italic">
-                            No inventory materials - add them in the Inventory tab
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Qty</label>
-                        <div className="relative">
-                          <input
-                            type="number" placeholder="0" min="0" step="1"
-                            value={mat.quantity}
-                            onChange={(e) => dispatch({ type: 'UPDATE_MATERIAL', id: mat.id, field: 'quantity', value: e.target.value === '' ? '' : Number(e.target.value) })}
-                            className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 text-left pr-10 font-medium"
-                          />
-                          <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">{mat.unit || 'pcs'}</span>
+                            } else {
+                              dispatch({ type: 'UPDATE_MATERIAL', id: mat.id, field: 'inventoryId', value: '' });
+                            }
+                          }}
+                          className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900"
+                        >
+                          <option value="">-- select material/hardware --</option>
+                          {inventoryMaterials.map(inv => (
+                            <option key={inv.id} value={String(inv.id)}>
+                              {inv.name}{inv.category ? ` - ${inv.category}` : ''}{inv.unit ? ` (${inv.unit})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="px-3 py-2 bg-zinc-50 border border-dashed border-zinc-200 rounded-md text-xs text-zinc-400 italic">
+                          No inventory materials - add them in the Inventory tab
                         </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Cost / Unit</label>
-                        <div className="relative">
-                          <input
-                            type="number" placeholder="0.00" min="0" step="0.01"
-                            value={mat.costPerUnit}
-                            onChange={(e) => dispatch({ type: 'UPDATE_MATERIAL', id: mat.id, field: 'costPerUnit', value: e.target.value === '' ? '' : Number(e.target.value) })}
-                            className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 text-left pr-12 font-medium"
-                          />
-                          <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">PHP</span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => dispatch({ type: 'REMOVE_MATERIAL', id: mat.id })}
-                        className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded transition-colors shrink-0"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      )}
                     </div>
-                  ))}
-                </div>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Qty</label>
+                      <div className="relative">
+                        <input
+                          type="number" placeholder="0" min="0" step="1"
+                          value={mat.quantity}
+                          onChange={(e) => dispatch({ type: 'UPDATE_MATERIAL', id: mat.id, field: 'quantity', value: e.target.value === '' ? '' : Number(e.target.value) })}
+                          className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 text-left pr-10 font-medium"
+                        />
+                        <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">{mat.unit || 'pcs'}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Cost / Unit</label>
+                      <div className="relative">
+                        <input
+                          type="number" placeholder="0.00" min="0" step="0.01"
+                          value={mat.costPerUnit}
+                          onChange={(e) => dispatch({ type: 'UPDATE_MATERIAL', id: mat.id, field: 'costPerUnit', value: e.target.value === '' ? '' : Number(e.target.value) })}
+                          className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 text-left pr-12 font-medium"
+                        />
+                        <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">PHP</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => dispatch({ type: 'REMOVE_MATERIAL', id: mat.id })}
+                      className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded transition-colors shrink-0"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </section>

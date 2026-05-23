@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
-import { FileText, TrendingUp, Users, Printer, Clock, MoreHorizontal, CheckCircle2, Pencil, XCircle, Trash2 } from 'lucide-react';
+import { FileText, TrendingUp, Users, Printer, Clock, MoreHorizontal, CheckCircle2, Pencil, XCircle, Trash2, Loader2, AlertTriangle, ShieldAlert } from 'lucide-react';
 import OrderDetailsModal from './OrderDetailsModal';
 
 export default function MetricsView() {
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [failureOrderId, setFailureOrderId] = useState(null);
   const menuRef = useRef(null);
   const queryClient = useQueryClient();
 
@@ -289,6 +290,16 @@ export default function MetricsView() {
                         </button>
                         <button 
                           onClick={() => {
+                            setFailureOrderId(order.id);
+                            setOpenMenuId(null);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 flex items-center gap-2 border-t border-zinc-100"
+                        >
+                          <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+                          Report Failure
+                        </button>
+                        <button 
+                          onClick={() => {
                             if (confirm('Are you sure you want to PERMANENTLY DELETE this order? This action cannot be undone.')) {
                               deleteMutation.mutate(order.id);
                             }
@@ -328,6 +339,253 @@ export default function MetricsView() {
           }} 
         />
       )}
+
+      {/* Track 3: Report Failure Modal Overlay */}
+      {failureOrderId && (
+        <ReportFailureModal 
+          orderId={failureOrderId} 
+          onClose={() => setFailureOrderId(null)} 
+        />
+      )}
+    </div>
+  );
+}
+
+// Sleek, glassmorphic modal to report print failures (Track 3)
+function ReportFailureModal({ orderId, onClose }) {
+  const queryClient = useQueryClient();
+  const [filaments, setFilaments] = useState([]);
+  const [selectedFilamentId, setSelectedFilamentId] = useState('');
+  const [wastedGrams, setWastedGrams] = useState('');
+  const [reason, setReason] = useState('Bed Adhesion Failure');
+  const [payer, setPayer] = useState('Administrator');
+  const [loading, setLoading] = useState(false);
+  const [orderName, setOrderName] = useState('Active Print Job');
+
+  useEffect(() => {
+    // Load filaments for dropdown
+    const raw = localStorage.getItem('inventory_filaments');
+    if (raw) {
+      try {
+        setFilaments(JSON.parse(raw));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    
+    // Fetch order item name
+    supabase
+      .from('orders')
+      .select('id, items(name)')
+      .eq('id', orderId)
+      .single()
+      .then(({ data }) => {
+        if (data && data.items?.[0]?.name) {
+          setOrderName(data.items[0].name);
+        }
+      });
+  }, [orderId]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const grams = parseFloat(wastedGrams);
+    if (!grams || grams <= 0) {
+      alert("Please enter a valid weight in grams.");
+      return;
+    }
+    if (!selectedFilamentId) {
+      alert("Please select the filament used.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const spool = filaments.find(f => String(f.id) === String(selectedFilamentId));
+      const costPerKg = spool ? spool.costPerKg : 700;
+      const calculatedCost = (grams / 1000) * costPerKg;
+
+      // 1. Deduct stock from inventory
+      const { data: filamentsData, error: loadErr } = await supabase
+        .from('inventory_filaments')
+        .select('*')
+        .eq('id', selectedFilamentId)
+        .single();
+
+      if (!loadErr && filamentsData) {
+        await supabase
+          .from('inventory_filaments')
+          .update({
+            weight_grams: Math.max(0, Number(filamentsData.weight_grams || 0) - grams),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', selectedFilamentId);
+      }
+
+      // 2. Insert print failure log (resilient check)
+      const stlName = `${orderName} (Failed Run)`;
+      try {
+        await supabase
+          .from('failed_prints')
+          .insert({
+            order_id: orderId,
+            filament_id: selectedFilamentId,
+            weight_grams: grams,
+            estimated_cost: Math.round(calculatedCost * 100) / 100,
+            failure_reason: reason
+          });
+      } catch (dbErr) {
+        console.warn("failed_prints table might not be migrated yet, fallback active:", dbErr);
+      }
+
+      // 3. Log as an active shop outflow under inventory_expenses
+      await supabase
+        .from('inventory_expenses')
+        .insert({
+          date: new Date().toISOString(),
+          item_name: `Waste: ${stlName}`,
+          category: 'Waste',
+          cost: Math.round(calculatedCost * 100) / 100,
+          payer: payer,
+          notes: `Failure reason: ${reason}. Order ID: ${orderId.split('-')[0].toUpperCase()}...`
+        });
+
+      // 4. Force sync local caches
+      const { data: refreshFila } = await supabase.from('inventory_filaments').select('*').order('id', { ascending: true });
+      if (refreshFila) {
+        const mapped = refreshFila.map(row => ({
+          id: row.id,
+          type: row.type,
+          brand: row.brand,
+          color: row.color,
+          weightGrams: Number(row.weight_grams),
+          costPerKg: Number(row.cost_per_kg),
+          notes: row.notes,
+        }));
+        localStorage.setItem('inventory_filaments', JSON.stringify(mapped));
+      }
+
+      alert("Print failure logged! Stock updated and financial outflow recorded successfully.");
+      queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
+      onClose();
+    } catch (err) {
+      console.error(err);
+      alert("Logging failed: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-zinc-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <div 
+        className="bg-white border border-zinc-200 shadow-2xl rounded-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center pb-3 border-b border-zinc-100 mb-4">
+          <div>
+            <h3 className="text-base font-bold text-zinc-950">Report Print Failure</h3>
+            <p className="text-xs text-zinc-400 font-semibold">{orderName}</p>
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-zinc-100 rounded text-zinc-400 hover:text-zinc-800 transition-colors">
+            <XCircle className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Filament Spool Used</label>
+            {filaments.length > 0 ? (
+              <select
+                value={selectedFilamentId}
+                onChange={e => setSelectedFilamentId(e.target.value)}
+                required
+                className="w-full text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-zinc-50 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900"
+              >
+                <option value="">— select spool —</option>
+                {filaments.map(f => (
+                  <option key={f.id} value={String(f.id)}>
+                    {f.type || f.name} - {f.color} ({f.brand || 'Generic'}) [{f.weightGrams}g remaining]
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="p-2 border border-dashed border-zinc-200 rounded text-xs text-zinc-400 italic text-center bg-zinc-50">
+                No active spools found. Register spools in the inventory tab first.
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Wasted Weight</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="1"
+                  step="0.1"
+                  placeholder="grams"
+                  value={wastedGrams}
+                  onChange={e => setWastedGrams(e.target.value)}
+                  required
+                  className="w-full text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-zinc-50 font-semibold focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 pr-8"
+                />
+                <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">g</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Payer Account</label>
+              <input
+                type="text"
+                value={payer}
+                onChange={e => setPayer(e.target.value)}
+                required
+                className="w-full text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-zinc-50 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Failure Reason</label>
+            <select
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              className="w-full text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-zinc-50 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900"
+            >
+              <option value="Bed Adhesion Failure">Bed Adhesion Failure</option>
+              <option value="Nozzle Clog / Under-extrusion">Nozzle Clog / Under-extrusion</option>
+              <option value="Layer Shift">Layer Shift</option>
+              <option value="Filament Runout / Tangled Spool">Filament Runout / Tangled Spool</option>
+              <option value="Power Failure / Interrupted Run">Power Failure / Interrupted Run</option>
+              <option value="Slicing / G-code Glitch">Slicing / G-code Glitch</option>
+              <option value="Other / Mechanical Error">Other / Mechanical Error</option>
+            </select>
+          </div>
+
+          <div className="flex gap-3 pt-3 border-t border-zinc-100">
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-40"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Logging...
+                </>
+              ) : (
+                "Log Failure Loss"
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-xs font-bold py-2.5 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
