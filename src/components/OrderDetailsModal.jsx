@@ -149,6 +149,7 @@ function toEditorState(order, config) {
       fixedFamilyPrice: persisted.fixedFamilyPrice !== undefined ? Number(persisted.fixedFamilyPrice) : (snapshot.fixedFamilyPrice !== undefined ? Number(snapshot.fixedFamilyPrice) : 0),
       fixedQuantity: persisted.fixedQuantity !== undefined ? Number(persisted.fixedQuantity) : (snapshot.fixedQuantity !== undefined ? Number(snapshot.fixedQuantity) : 1),
       addToGallery: persisted.addToGallery !== false && snapshot.addToGallery !== false,
+      amountPaid: snapshot.amountPaid !== undefined ? Number(snapshot.amountPaid) : (persisted.amountPaid !== undefined ? Number(persisted.amountPaid) : 0),
     };
   }
 
@@ -211,6 +212,7 @@ function toEditorState(order, config) {
     fixedFamilyPrice: snapshot.fixedFamilyPrice !== undefined ? Number(snapshot.fixedFamilyPrice) : 0,
     fixedQuantity: snapshot.fixedQuantity !== undefined ? Number(snapshot.fixedQuantity) : 1,
     addToGallery: snapshot.addToGallery !== false,
+    amountPaid: snapshot.amountPaid !== undefined ? Number(snapshot.amountPaid) : 0,
   };
 }
 
@@ -490,6 +492,7 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
         fixedFamilyPrice: Number(editorState.fixedFamilyPrice || 0),
         fixedQuantity: Number(editorState.fixedQuantity || 1),
         addToGallery: editorState.addToGallery !== false,
+        amountPaid: Number(editorState.amountPaid || 0),
         editorState: {
           ...editorState,
           pricingMode: editorState.pricingMode || 'dynamic',
@@ -497,6 +500,7 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
           fixedFamilyPrice: Number(editorState.fixedFamilyPrice || 0),
           fixedQuantity: Number(editorState.fixedQuantity || 1),
           addToGallery: editorState.addToGallery !== false,
+          amountPaid: Number(editorState.amountPaid || 0),
         },
       };
 
@@ -1336,6 +1340,19 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                         onChange={e => updateEditorField('customFinalPrice', e.target.value)}
                         className="w-48 px-3 py-1.5 text-right bg-zinc-50 border border-zinc-200 rounded-md text-sm font-medium mb-4 focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors"
                       />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1">Amount Paid</span>
+                      <div className="relative mb-4">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={editorState.amountPaid}
+                          onChange={e => updateEditorField('amountPaid', e.target.value)}
+                          className="w-48 px-3 py-1.5 text-right bg-zinc-50 border border-zinc-200 rounded-md text-sm font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors pr-12"
+                        />
+                        <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">PHP</span>
+                      </div>
                       <span className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-1">Total Billable</span>
                       <div className="flex items-baseline gap-1">
                         <span className="text-lg font-semibold text-zinc-400">PHP</span>
@@ -1346,6 +1363,10 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                           Overridden (Calc: {formatMoney(totals.calculatedPrice)})
                         </span>
                       )}
+                      <div className="flex items-baseline justify-between w-full mt-3 pt-3 border-t border-zinc-100 text-xs text-zinc-500 font-semibold">
+                        <span>Remaining Balance:</span>
+                        <span className="text-sm font-bold text-zinc-900">PHP {formatMoney(Math.max(0, totals.finalPrice - Number(editorState.amountPaid || 0)))}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1421,7 +1442,21 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                     {data.financial_breakdown.supplementaryMatCost > 0 && <div className="flex justify-between items-center"><span>Supplementary</span><span className="text-zinc-900">{formatMoney(data.financial_breakdown.supplementaryMatCost)}</span></div>}
                     {data.financial_breakdown.logisticsCost > 0 && <div className="flex justify-between items-center"><span>Logistics & Overheads</span><span className="text-zinc-900">{formatMoney(data.financial_breakdown.logisticsCost)}</span></div>}
                     {data.financial_breakdown.markupCost > 0 && <div className="flex justify-between items-center border-t border-zinc-100 pt-3 mt-1"><span className="font-semibold text-emerald-600">Markup Profit <span className="text-xs font-normal">({data.financial_breakdown.markupPercent}%)</span></span><span className="text-emerald-700 font-semibold">+{formatMoney(data.financial_breakdown.markupCost)}</span></div>}
-                    <div className="flex flex-col items-end pt-5 border-t border-zinc-200 mt-2"><span className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-1">Total Billable</span><div className="flex items-baseline gap-1"><span className="text-lg font-semibold text-zinc-400">PHP</span><span className="text-4xl font-extrabold text-zinc-900 tracking-tight">{formatMoney(data.total_price)}</span></div></div>
+                    <div className="flex flex-col items-end pt-5 border-t border-zinc-200 mt-2">
+                      <span className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-1">Total Billable</span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-lg font-semibold text-zinc-400">PHP</span>
+                        <span className="text-4xl font-extrabold text-zinc-900 tracking-tight">{formatMoney(data.total_price)}</span>
+                      </div>
+                      <div className="flex justify-between items-center w-full mt-3 pt-3 border-t border-zinc-100 text-sm">
+                        <span className="text-zinc-500 font-semibold">Amount Paid</span>
+                        <span className="font-bold text-emerald-600">PHP {formatMoney(data.financial_breakdown?.amountPaid || 0)}</span>
+                      </div>
+                      <div className="flex justify-between items-center w-full mt-1.5 text-sm">
+                        <span className="text-zinc-500 font-semibold">Remaining Balance</span>
+                        <span className="font-bold text-zinc-900">PHP {formatMoney(Math.max(0, data.total_price - (data.financial_breakdown?.amountPaid || 0)))}</span>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="bg-zinc-50 border-t border-zinc-200 border-dashed p-6 flex flex-col items-center justify-center text-center">

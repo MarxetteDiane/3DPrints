@@ -46,12 +46,13 @@ export default function FinancialReportView() {
       // 1. Fetch Orders (Both Completed and Pending)
       const { data: allOrders, error: ordersError } = await supabase
         .from('orders')
-        .select('total_price, status, created_at');
+        .select('total_price, status, created_at, financial_breakdown');
 
       if (ordersError) throw ordersError;
 
-      const completedOrders = allOrders.filter(o => o.status === 'Completed');
-      const pendingOrders = allOrders.filter(o => o.status !== 'Completed' && o.status !== 'Cancelled');
+      const allOrdersList = allOrders || [];
+      const completedOrders = allOrdersList.filter(o => o.status === 'Completed');
+      const pendingOrders = allOrdersList.filter(o => o.status !== 'Completed' && o.status !== 'Cancelled');
 
       // 2. Fetch Expenses
       const { data: expenses, error: expensesError } = await supabase
@@ -67,9 +68,26 @@ export default function FinancialReportView() {
 
       if (restocksError) throw restocksError;
 
-      // Calculations
-      const totalRevenue = (completedOrders || []).reduce((sum, o) => sum + (Number(o.total_price) || 0), 0);
-      const totalPendingRevenue = (pendingOrders || []).reduce((sum, o) => sum + (Number(o.total_price) || 0), 0);
+      // Calculations: Total Revenue counts cash received across all active and completed orders
+      const totalRevenue = allOrdersList.reduce((sum, o) => {
+        if (o.status === 'Cancelled') return sum;
+        const total = Number(o.total_price || 0);
+        const amountPaid = o.financial_breakdown?.amountPaid !== undefined
+          ? Number(o.financial_breakdown.amountPaid)
+          : (o.status === 'Completed' ? total : 0);
+        return sum + amountPaid;
+      }, 0);
+
+      // Pending Revenue counts outstanding balance on active orders
+      const totalPendingRevenue = allOrdersList.reduce((sum, o) => {
+        if (o.status === 'Completed' || o.status === 'Cancelled') return sum;
+        const total = Number(o.total_price || 0);
+        const amountPaid = o.financial_breakdown?.amountPaid !== undefined
+          ? Number(o.financial_breakdown.amountPaid)
+          : 0;
+        const balance = Math.max(0, total - amountPaid);
+        return sum + balance;
+      }, 0);
       
       const totalExpensesList = [
         ...(expenses || []).map(e => ({ cost: Number(e.cost), payer: e.payer || 'Unknown', date: e.date, label: e.item_name, type: 'Expense' })),
@@ -105,11 +123,17 @@ export default function FinancialReportView() {
         });
       }
 
-      (completedOrders || []).forEach(o => {
+      // Accumulate cash received by month
+      allOrdersList.forEach(o => {
+        if (o.status === 'Cancelled') return;
         const oDate = new Date(o.created_at);
         const match = months.find(m => m.year === oDate.getFullYear() && m.monthNum === oDate.getMonth());
         if (match) {
-          match.revenue += Number(o.total_price) || 0;
+          const total = Number(o.total_price || 0);
+          const amountPaid = o.financial_breakdown?.amountPaid !== undefined
+            ? Number(o.financial_breakdown.amountPaid)
+            : (o.status === 'Completed' ? total : 0);
+          match.revenue += amountPaid;
         }
       });
 
@@ -175,8 +199,10 @@ export default function FinancialReportView() {
         pendingRevenue: totalPendingRevenue,
         payerBreakdown,
         recentTransactions,
-        orderCount: (completedOrders || []).length,
-        avgOrderValue: (completedOrders || []).length > 0 ? totalRevenue / completedOrders.length : 0,
+        orderCount: completedOrders.length,
+        avgOrderValue: completedOrders.length > 0 
+          ? completedOrders.reduce((sum, o) => sum + (Number(o.total_price) || 0), 0) / completedOrders.length 
+          : 0,
         monthlyProfitHistory: months,
         categoryBreakdown,
         wastedGramsTotal,

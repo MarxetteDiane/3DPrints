@@ -222,6 +222,7 @@ export default function MetricsView() {
                 <th className="px-6 py-4 font-semibold">Client</th>
                 <th className="px-6 py-4 font-semibold">Item</th>
                 <th className="px-6 py-4 font-semibold">Date Logged</th>
+                <th className="px-6 py-4 font-semibold">Payment Status</th>
                 <th className="px-6 py-4 font-semibold text-center">Status</th>
                 <th className="px-6 py-4 font-semibold text-right">Actions</th>
               </tr>
@@ -234,91 +235,135 @@ export default function MetricsView() {
                     <td className="px-6 py-4"><div className="h-4 w-32 bg-zinc-100 rounded pulse-light" /></td>
                     <td className="px-6 py-4"><div className="h-4 w-32 bg-zinc-100 rounded pulse-light" /></td>
                     <td className="px-6 py-4"><div className="h-4 w-24 bg-zinc-100 rounded pulse-light" /></td>
+                    <td className="px-6 py-4"><div className="h-4 w-28 bg-zinc-100 rounded pulse-light" /></td>
                     <td className="px-6 py-4 flex justify-center"><div className="h-6 w-24 bg-zinc-100 rounded-full pulse-light" /></td>
                     <td className="px-6 py-4"><div className="h-4 w-4 bg-zinc-100 rounded ml-auto pulse-light" /></td>
                   </tr>
                 ))
-              ) : orders.map((order) => (
-                <tr 
-                  key={order.id} 
-                  className="hover:bg-zinc-50 transition-colors cursor-pointer"
-                  onClick={() => setSelectedOrderId(order.id)}
-                >
-                  <td className="px-6 py-4 whitespace-nowrap font-semibold text-zinc-900">
-                    {order.id.split('-')[0].toUpperCase()}...
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap font-medium text-zinc-700">
-                    {order.clients?.name || 'Unknown Client'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-zinc-700 font-medium">
-                    {order.items?.[0]?.name || 'Unknown Item'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-zinc-500">
-                    {new Date(order.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center">
-                    <StatusBadge status={order.status} onClick={() => cycleStatus(order.id, order.status)} />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right relative">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenMenuId(openMenuId === order.id ? null : order.id);
-                      }}
-                      className="text-zinc-400 hover:text-zinc-900 transition-colors tooltip p-1 rounded-full hover:bg-zinc-100" 
-                      title="Manage Order"
-                    >
-                      <MoreHorizontal className="w-5 h-5 ml-auto" />
-                    </button>
-                    
-                    {openMenuId === order.id && (
-                      <div 
-                        ref={menuRef}
-                        className="absolute right-6 top-10 w-36 bg-white border border-zinc-200 rounded shadow-xl z-30 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
-                        onClick={(e) => e.stopPropagation()}
+              ) : orders.map((order) => {
+                const total = Number(order.total_price || 0);
+                const amountPaid = order.financial_breakdown?.amountPaid !== undefined
+                  ? Number(order.financial_breakdown.amountPaid)
+                  : (order.status === 'Completed' ? total : 0);
+                const balance = Math.max(0, total - amountPaid);
+                
+                const formatMoney = (val) => {
+                  const num = Number.parseFloat(val);
+                  if (!Number.isFinite(num)) return '0.00';
+                  return num.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  });
+                };
+
+                return (
+                  <tr 
+                    key={order.id} 
+                    className="hover:bg-zinc-50 transition-colors cursor-pointer"
+                    onClick={() => setSelectedOrderId(order.id)}
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap font-semibold text-zinc-900">
+                      {order.id.split('-')[0].toUpperCase()}...
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap font-medium text-zinc-700">
+                      {order.clients?.name || 'Unknown Client'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-zinc-700 font-medium">
+                      {order.items?.[0]?.name || 'Unknown Item'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-zinc-500">
+                      {new Date(order.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {total === 0 ? (
+                        <div>
+                          <div className="font-semibold text-zinc-900">PHP 0.00</div>
+                          <div className="text-xs text-zinc-400 font-medium">Free Tier</div>
+                        </div>
+                      ) : balance <= 0 ? (
+                        <div>
+                          <div className="font-semibold text-zinc-900">PHP {formatMoney(total)}</div>
+                          <div className="text-xs text-emerald-600 font-bold uppercase tracking-wider">Fully Paid</div>
+                        </div>
+                      ) : amountPaid > 0 ? (
+                        <div>
+                          <div className="font-semibold text-zinc-900">PHP {formatMoney(total)}</div>
+                          <div className="text-xs text-amber-600 font-semibold">
+                            Paid: PHP {formatMoney(amountPaid)}
+                            <span className="block text-[10px] text-zinc-400 font-normal">Bal: PHP {formatMoney(balance)}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="font-semibold text-zinc-900">PHP {formatMoney(total)}</div>
+                          <div className="text-xs text-zinc-400 font-bold uppercase tracking-wider">Unpaid</div>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <StatusBadge status={order.status} onClick={() => cycleStatus(order.id, order.status)} />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right relative">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(openMenuId === order.id ? null : order.id);
+                        }}
+                        className="text-zinc-400 hover:text-zinc-900 transition-colors tooltip p-1 rounded-full hover:bg-zinc-100" 
+                        title="Manage Order"
                       >
-                        <button 
-                          onClick={() => {
-                            setSelectedOrderId(order.id);
-                            setIsEditing(true);
-                            setOpenMenuId(null);
-                          }}
-                          className="w-full text-left px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 flex items-center gap-2"
+                        <MoreHorizontal className="w-5 h-5 ml-auto" />
+                      </button>
+                      
+                      {openMenuId === order.id && (
+                        <div 
+                          ref={menuRef}
+                          className="absolute right-6 top-10 w-36 bg-white border border-zinc-200 rounded shadow-xl z-30 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <Pencil className="w-3.5 h-3.5" />
-                          Edit Order
-                        </button>
-                        <button 
-                          onClick={() => {
-                            setFailureOrderId(order.id);
-                            setOpenMenuId(null);
-                          }}
-                          className="w-full text-left px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 flex items-center gap-2 border-t border-zinc-100"
-                        >
-                          <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
-                          Report Failure
-                        </button>
-                        <button 
-                          onClick={() => {
-                            if (confirm('Are you sure you want to PERMANENTLY DELETE this order? This action cannot be undone.')) {
-                              deleteMutation.mutate(order.id);
-                            }
-                            setOpenMenuId(null);
-                          }}
-                          className="w-full text-left px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-zinc-100"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          Delete Order
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                          <button 
+                            onClick={() => {
+                              setSelectedOrderId(order.id);
+                              setIsEditing(true);
+                              setOpenMenuId(null);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 flex items-center gap-2"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            Edit Order
+                          </button>
+                          <button 
+                            onClick={() => {
+                              setFailureOrderId(order.id);
+                              setOpenMenuId(null);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 flex items-center gap-2 border-t border-zinc-100"
+                          >
+                            <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+                            Report Failure
+                          </button>
+                          <button 
+                            onClick={() => {
+                              if (confirm('Are you sure you want to PERMANENTLY DELETE this order? This action cannot be undone.')) {
+                                deleteMutation.mutate(order.id);
+                              }
+                              setOpenMenuId(null);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-zinc-100"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Delete Order
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
               
               {!isPending && orders.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="px-6 py-10 text-center text-zinc-500">
+                  <td colSpan="7" className="px-6 py-10 text-center text-zinc-500">
                     No active orders found in the pipeline. Start building a quote!
                   </td>
                 </tr>

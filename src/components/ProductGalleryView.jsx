@@ -18,7 +18,8 @@ function ProductGalleryView({ config, onLoadTemplate }) {
     try {
       setLoading(true);
       // Query completed or successful orders that have related items
-      const { data, error: queryError } = await supabase
+      let data = [];
+      const { data: dataWithImg, error: queryErrorWithImg } = await supabase
         .from('orders')
         .select(`
           id,
@@ -43,7 +44,37 @@ function ProductGalleryView({ config, onLoadTemplate }) {
         .neq('status', 'Failed')
         .order('created_at', { ascending: false });
 
-      if (queryError) throw queryError;
+      if (queryErrorWithImg) {
+        console.warn('Supabase items.image_url column missing, falling back to clean query:', queryErrorWithImg);
+        const { data: dataFallback, error: queryErrorFallback } = await supabase
+          .from('orders')
+          .select(`
+            id,
+            total_price,
+            status,
+            created_at,
+            financial_breakdown,
+            clients (
+              name,
+              contact
+            ),
+            items (
+              id,
+              name,
+              filament_weight_g,
+              print_time_hours,
+              number_of_plates,
+              labor_hours
+            )
+          `)
+          .neq('status', 'Failed')
+          .order('created_at', { ascending: false });
+
+        if (queryErrorFallback) throw queryErrorFallback;
+        data = dataFallback;
+      } else {
+        data = dataWithImg;
+      }
 
       // Compile item blueprints
       const compiledBlueprints = [];
@@ -273,14 +304,31 @@ function ProductGalleryView({ config, onLoadTemplate }) {
 
       // 1. Batch update on the items table
       if (editingProduct.itemIds && editingProduct.itemIds.length > 0) {
-        const { error: itemsError } = await supabase
-          .from('items')
-          .update({ 
-            name: newName,
-            image_url: newImageUrl 
-          })
-          .in('id', editingProduct.itemIds);
-        if (itemsError) throw itemsError;
+        try {
+          const { error: itemsError } = await supabase
+            .from('items')
+            .update({ 
+              name: newName,
+              image_url: newImageUrl 
+            })
+            .in('id', editingProduct.itemIds);
+          
+          if (itemsError) {
+            console.warn('Supabase items.image_url column missing, updating name only:', itemsError);
+            const { error: fallbackError } = await supabase
+              .from('items')
+              .update({ name: newName })
+              .in('id', editingProduct.itemIds);
+            if (fallbackError) throw fallbackError;
+          }
+        } catch (err) {
+          console.warn('Caught items.image_url batch update exception, updating name only:', err);
+          const { error: fallbackError } = await supabase
+            .from('items')
+            .update({ name: newName })
+            .in('id', editingProduct.itemIds);
+          if (fallbackError) throw fallbackError;
+        }
       }
 
       // 2. Fetch and update matching orders
