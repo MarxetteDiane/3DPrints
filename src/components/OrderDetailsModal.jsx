@@ -1358,10 +1358,9 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                   </div>
                   <div className="p-6">
                     <div className="space-y-3 font-medium text-sm text-zinc-600 border-b border-zinc-100 pb-5">
-                      <div className="flex justify-between items-center">
-                        <span>Material & Utility Allocation <span className="text-xs text-zinc-400 font-normal">({totals.totalKWh.toFixed(1)} kWh)</span></span>
-                        <span className="text-zinc-900">{formatMoney(totals.filCost + totals.elecCost)}</span>
-                      </div>
+                      <div className="flex justify-between items-center"><span>Material Allocation</span><span className="text-zinc-900">{formatMoney(totals.filCost)}</span></div>
+                      <div className="flex justify-between items-center"><span>Utility & Infrastructure <span className="text-xs text-zinc-400 font-normal">({totals.totalKWh.toFixed(1)} kWh)</span></span><span className="text-zinc-900">{formatMoney(totals.elecCost)}</span></div>
+                      <div className="flex justify-between items-center pt-1.5 border-t border-dashed border-zinc-200"><span className="font-semibold text-zinc-800">Material & Utility Combined</span><span className="font-semibold text-zinc-900">{formatMoney(totals.filCost + totals.elecCost)}</span></div>
                       {totals.wearTearCost > 0 && <div className="flex justify-between items-center"><span>Machine Wear & Tear</span><span className="text-zinc-900">{formatMoney(totals.wearTearCost)}</span></div>}
                       {totals.failureBufferCost > 0 && <div className="flex justify-between items-center pt-1"><span className="italic">Ops Waste Buffer <span className="text-xs text-zinc-400 font-normal">({config.failureRatePercent}%)</span></span><span className="text-zinc-900 italic">+{formatMoney(totals.failureBufferCost)}</span></div>}
                       <div className="flex justify-between items-center pt-2 border-t border-zinc-100 mt-2"><span>Direct Labor</span><span className="text-zinc-900">{formatMoney(totals.laborCost)}</span></div>
@@ -1475,10 +1474,9 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                 </div>
                 {data.financial_breakdown ? (
                   <div className="p-5 flex flex-col gap-3 text-sm text-zinc-600">
-                    <div className="flex justify-between items-center">
-                      <span>Material & Utility Allocation <span className="text-xs text-zinc-400">({Number.parseFloat(data.financial_breakdown.totalKWh || 0).toFixed(1)} kWh)</span></span>
-                      <span className="text-zinc-900">{formatMoney(Number(data.financial_breakdown.filamentCost) + Number(data.financial_breakdown.electricityCost))}</span>
-                    </div>
+                    <div className="flex justify-between items-center"><span>Material Allocation</span><span className="text-zinc-900">{formatMoney(data.financial_breakdown.filamentCost)}</span></div>
+                    <div className="flex justify-between items-center"><span>Utility & Infrastructure <span className="text-xs text-zinc-400">({Number.parseFloat(data.financial_breakdown.totalKWh || 0).toFixed(1)} kWh)</span></span><span className="text-zinc-900">{formatMoney(data.financial_breakdown.electricityCost)}</span></div>
+                    <div className="flex justify-between items-center pt-1.5 border-t border-dashed border-zinc-200"><span className="font-semibold text-zinc-800">Material & Utility Combined</span><span className="font-semibold text-zinc-900">{formatMoney(Number(data.financial_breakdown.filamentCost) + Number(data.financial_breakdown.electricityCost))}</span></div>
                     {data.financial_breakdown.wearTearCost > 0 && <div className="flex justify-between items-center"><span>Machine Wear & Tear</span><span className="text-zinc-900">{formatMoney(data.financial_breakdown.wearTearCost)}</span></div>}
                     {data.financial_breakdown.failureBufferCost > 0 && <div className="flex justify-between items-center italic text-zinc-500"><span>Ops Waste Buffer <span className="text-xs text-zinc-400">({data.financial_breakdown.failureRatePercent}%)</span></span><span className="text-zinc-900">+{formatMoney(data.financial_breakdown.failureBufferCost)}</span></div>}
                     <div className="flex justify-between items-center border-t border-zinc-100 pt-3 mt-1"><span>Direct Labor</span><span className="text-zinc-900">{formatMoney(data.financial_breakdown.laborCost)}</span></div>

@@ -1111,8 +1111,22 @@ export default function AdvancedPriceChecker({ config }) {
             <div className="space-y-3 font-medium text-sm text-zinc-600 border-b border-zinc-100 pb-5">
 
               <div className="flex justify-between items-center group">
-                <span>Material & Utility Allocation <span className="text-xs text-zinc-400 font-normal">({totalKWh.toFixed(1)} kWh)</span></span>
+                <span>Material Allocation</span>
                 <span className="text-zinc-900 group-hover:text-black">
+                  {filCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center group">
+                <span>Utility & Infrastructure <span className="text-xs text-zinc-400 font-normal">({totalKWh.toFixed(1)} kWh)</span></span>
+                <span className="text-zinc-900 group-hover:text-black">
+                  {elecCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center group pt-1.5 border-t border-dashed border-zinc-200">
+                <span className="font-semibold text-zinc-800">Material & Utility Combined</span>
+                <span className="font-semibold text-zinc-900 group-hover:text-black">
                   {(filCost + elecCost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
