@@ -1055,16 +1055,55 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                   </div>
 
                   <div className="p-4 sm:p-5 space-y-6">
-                    {editorState.plates.map((plate, index) => (
-                      <div key={plate.id} className="border border-zinc-200 rounded-lg overflow-hidden bg-zinc-50/50 shadow-sm transition-all">
-                        <div className="px-4 py-3 border-b border-zinc-200 bg-white flex justify-between items-center">
-                          <h3 className="text-sm font-bold tracking-tight text-zinc-800">Plate {index + 1}</h3>
-                          {editorState.plates.length > 1 && (
-                            <button onClick={() => removePlate(plate.id)} className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
+                    {editorState.plates.map((plate, index) => {
+                      // Calculate electricity cost for this plate
+                      const pFilaChangesCount = Math.max(1, parseInt(plate.filamentChangeCount, 10) || 0);
+                      const hours = Math.max(0, parseFloat(plate.printTimeHours) || 0);
+                      const minutes = Math.max(0, parseFloat(plate.printTimeMinutes) || 0);
+                      const plateMinutes = (hours * 60) + minutes;
+                      const totalPlateHours = plateMinutes / 60;
+                      const surgeHours = 8 / 60; // 8 minutes per plate
+                      let surgeKWh = 0;
+                      let normalKWh = 0;
+
+                      if (totalPlateHours > 0) {
+                        surgeKWh = surgeHours * (config?.powerSurgeKwh || 1.3);
+                        const remainingHours = Math.max(0, totalPlateHours - surgeHours);
+                        normalKWh = remainingHours * (config?.printerKwhPerHour || 0.2);
+                      } else {
+                        surgeKWh = surgeHours * (config?.powerSurgeKwh || 1.3);
+                        normalKWh = 0;
+                      }
+                      const plateKWh = surgeKWh + normalKWh;
+                      const plateElecCost = (plateKWh * (config?.baseCostRate || 14.16)) + (pFilaChangesCount * (config?.filamentChangeCost || 0.1));
+
+                      // Calculate filament cost for this plate
+                      let plateFilCost = 0;
+                      plate.filaments?.forEach(f => {
+                        const weight = Math.max(0, parseFloat(f.weight) || 0);
+                        plateFilCost += (weight / 1000) * Math.max(0, parseFloat(f.costPerKg) || 0);
+                      });
+
+                      return (
+                        <div key={plate.id} className="border border-zinc-200 rounded-lg overflow-hidden bg-zinc-50/50 shadow-sm transition-all">
+                          <div className="px-4 py-3 border-b border-zinc-200 bg-white flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                              <h3 className="text-sm font-bold tracking-tight text-zinc-800">Plate {index + 1}</h3>
+                              <div className="flex flex-wrap gap-2 text-[10px]">
+                                <span className="bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                                  Filament: PHP {formatMoney(plateFilCost)}
+                                </span>
+                                <span className="bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                                  Electricity: PHP {formatMoney(plateElecCost)}
+                                </span>
+                              </div>
+                            </div>
+                            {editorState.plates.length > 1 && (
+                              <button onClick={() => removePlate(plate.id)} className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
                         <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 border-b border-zinc-200 bg-zinc-50/50">
                           <div className="flex flex-col gap-2">
                             <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500">Print Timeline</label>
@@ -1157,7 +1196,7 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                           </div>
                         </div>
                       </div>
-                    ))}
+                    )})}
                   </div>
                 </section>
 
@@ -1319,8 +1358,10 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                   </div>
                   <div className="p-6">
                     <div className="space-y-3 font-medium text-sm text-zinc-600 border-b border-zinc-100 pb-5">
-                      <div className="flex justify-between items-center"><span>Material Allocation</span><span className="text-zinc-900">{formatMoney(totals.filCost)}</span></div>
-                      <div className="flex justify-between items-center"><span>Utility & Infrastructure <span className="text-xs text-zinc-400 font-normal">({totals.totalKWh.toFixed(1)} kWh)</span></span><span className="text-zinc-900">{formatMoney(totals.elecCost)}</span></div>
+                      <div className="flex justify-between items-center">
+                        <span>Material & Utility Allocation <span className="text-xs text-zinc-400 font-normal">({totals.totalKWh.toFixed(1)} kWh)</span></span>
+                        <span className="text-zinc-900">{formatMoney(totals.filCost + totals.elecCost)}</span>
+                      </div>
                       {totals.wearTearCost > 0 && <div className="flex justify-between items-center"><span>Machine Wear & Tear</span><span className="text-zinc-900">{formatMoney(totals.wearTearCost)}</span></div>}
                       {totals.failureBufferCost > 0 && <div className="flex justify-between items-center pt-1"><span className="italic">Ops Waste Buffer <span className="text-xs text-zinc-400 font-normal">({config.failureRatePercent}%)</span></span><span className="text-zinc-900 italic">+{formatMoney(totals.failureBufferCost)}</span></div>}
                       <div className="flex justify-between items-center pt-2 border-t border-zinc-100 mt-2"><span>Direct Labor</span><span className="text-zinc-900">{formatMoney(totals.laborCost)}</span></div>
@@ -1434,8 +1475,10 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                 </div>
                 {data.financial_breakdown ? (
                   <div className="p-5 flex flex-col gap-3 text-sm text-zinc-600">
-                    <div className="flex justify-between items-center"><span>Material Allocation</span><span className="text-zinc-900">{formatMoney(data.financial_breakdown.filamentCost)}</span></div>
-                    <div className="flex justify-between items-center"><span>Utility & Infrastructure <span className="text-xs text-zinc-400">({Number.parseFloat(data.financial_breakdown.totalKWh || 0).toFixed(1)} kWh)</span></span><span className="text-zinc-900">{formatMoney(data.financial_breakdown.electricityCost)}</span></div>
+                    <div className="flex justify-between items-center">
+                      <span>Material & Utility Allocation <span className="text-xs text-zinc-400">({Number.parseFloat(data.financial_breakdown.totalKWh || 0).toFixed(1)} kWh)</span></span>
+                      <span className="text-zinc-900">{formatMoney(Number(data.financial_breakdown.filamentCost) + Number(data.financial_breakdown.electricityCost))}</span>
+                    </div>
                     {data.financial_breakdown.wearTearCost > 0 && <div className="flex justify-between items-center"><span>Machine Wear & Tear</span><span className="text-zinc-900">{formatMoney(data.financial_breakdown.wearTearCost)}</span></div>}
                     {data.financial_breakdown.failureBufferCost > 0 && <div className="flex justify-between items-center italic text-zinc-500"><span>Ops Waste Buffer <span className="text-xs text-zinc-400">({data.financial_breakdown.failureRatePercent}%)</span></span><span className="text-zinc-900">+{formatMoney(data.financial_breakdown.failureBufferCost)}</span></div>}
                     <div className="flex justify-between items-center border-t border-zinc-100 pt-3 mt-1"><span>Direct Labor</span><span className="text-zinc-900">{formatMoney(data.financial_breakdown.laborCost)}</span></div>

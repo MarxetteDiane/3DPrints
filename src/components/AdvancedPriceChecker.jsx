@@ -702,10 +702,49 @@ export default function AdvancedPriceChecker({ config }) {
           </div>
 
           <div className="p-5 space-y-6">
-            {state.plates.map((plate, index) => (
-              <div key={plate.id} className="border border-zinc-200 rounded-lg overflow-hidden bg-zinc-50/50 shadow-sm transition-all">
-                <div className="px-4 py-3 border-b border-zinc-200 bg-white flex justify-between items-center">
-                  <h3 className="text-sm font-bold tracking-tight text-zinc-800">Plate {index + 1}</h3>
+            {state.plates.map((plate, index) => {
+              // Calculate electricity cost for this plate
+              const pFilaChangesCount = Math.max(1, parseInt(plate.filamentChangeCount) || 0);
+              const hours = Math.max(0, parseFloat(plate.printTimeHours) || 0);
+              const minutes = Math.max(0, parseFloat(plate.printTimeMinutes) || 0);
+              const plateMinutes = (hours * 60) + minutes;
+              const totalPlateHours = plateMinutes / 60;
+              const surgeHours = 8 / 60; // 8 minutes per plate
+              let surgeKWh = 0;
+              let normalKWh = 0;
+
+              if (totalPlateHours > 0) {
+                surgeKWh = surgeHours * (config?.powerSurgeKwh || 1.3);
+                const remainingHours = Math.max(0, totalPlateHours - surgeHours);
+                normalKWh = remainingHours * (config?.printerKwhPerHour || 0.2);
+              } else {
+                surgeKWh = surgeHours * (config?.powerSurgeKwh || 1.3);
+                normalKWh = 0;
+              }
+              const plateKWh = surgeKWh + normalKWh;
+              const plateElecCost = (plateKWh * (config?.baseCostRate || 14.16)) + (pFilaChangesCount * (config?.filamentChangeCost || 0.1));
+
+              // Calculate filament cost for this plate
+              let plateFilCost = 0;
+              plate.filaments.forEach(f => {
+                const weight = Math.max(0, parseFloat(f.weight) || 0);
+                plateFilCost += (weight / 1000) * Math.max(0, parseFloat(f.costPerKg) || 0);
+              });
+
+              return (
+                <div key={plate.id} className="border border-zinc-200 rounded-lg overflow-hidden bg-zinc-50/50 shadow-sm transition-all">
+                  <div className="px-4 py-3 border-b border-zinc-200 bg-white flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-sm font-bold tracking-tight text-zinc-800">Plate {index + 1}</h3>
+                      <div className="flex flex-wrap gap-2 text-[10px]">
+                        <span className="bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                          Filament: PHP {plateFilCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                        <span className="bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                          Electricity: PHP {plateElecCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
                   {state.plates.length > 1 && (
                     <button
                       onClick={() => dispatch({ type: 'REMOVE_PLATE', id: plate.id })}
@@ -849,7 +888,7 @@ export default function AdvancedPriceChecker({ config }) {
                   </div>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         </section>
 
@@ -1072,16 +1111,9 @@ export default function AdvancedPriceChecker({ config }) {
             <div className="space-y-3 font-medium text-sm text-zinc-600 border-b border-zinc-100 pb-5">
 
               <div className="flex justify-between items-center group">
-                <span>Material Allocation</span>
+                <span>Material & Utility Allocation <span className="text-xs text-zinc-400 font-normal">({totalKWh.toFixed(1)} kWh)</span></span>
                 <span className="text-zinc-900 group-hover:text-black">
-                  {filCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center group">
-                <span>Utility & Infrastructure <span className="text-xs text-zinc-400 font-normal">({totalKWh.toFixed(1)} kWh)</span></span>
-                <span className="text-zinc-900 group-hover:text-black">
-                  {elecCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {(filCost + elecCost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
 
