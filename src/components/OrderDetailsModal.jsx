@@ -291,7 +291,7 @@ function calculateTotals(editorState, config) {
   const isFree = editorState.isFamilyPricing === 'free';
   const isFixedMode = editorState.pricingMode === 'fixed';
   const appliedMarkupPercent = isFree ? 0 : (isFamily ? (config.familyMarkupPercent || 15) : (config.markupPercent || 30));
-  
+
   const calculatedPrice = isFixedMode
     ? (isFree ? 0 : (isFamily ? Number(editorState.fixedFamilyPrice || 0) : Number(editorState.fixedStandardPrice || 0)))
     : (isFree ? 0 : Math.round((markupBase + (markupBase * (appliedMarkupPercent / 100))) * 100) / 100);
@@ -314,6 +314,7 @@ function calculateTotals(editorState, config) {
     markupCost,
     calculatedPrice,
     finalPrice,
+    markupBase,
     totalLaborHours: editorState.labors.reduce(
       (sum, labor) => sum + (parseFloat(labor.hours) || 0),
       0,
@@ -462,6 +463,9 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
   const client = data?.clients || {};
   const canEdit = data?.status && data.status !== 'Completed';
   const totals = editorState ? calculateTotals(editorState, config) : null;
+  const displayTotalCost = totals
+    ? totals.filCost + totals.elecCost + totals.supplementaryMatCost + totals.laborCost
+    : 0;
 
   const updateMutation = useMutation({
     mutationFn: async () => {
@@ -909,76 +913,74 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                   </div>
                   <div className="p-5 space-y-4">
                     <div>
-                       <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Item Name</label>
-                       <input value={editorState.itemName} onChange={(e) => updateEditorField('itemName', e.target.value)} className={fieldClass} />
-                     </div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Item Name</label>
+                      <input value={editorState.itemName} onChange={(e) => updateEditorField('itemName', e.target.value)} className={fieldClass} />
+                    </div>
 
-                     {/* Pricing Mode Selection */}
-                     <div className="border-t border-zinc-100 pt-4">
-                       <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Pricing Mode</label>
-                       <div className="flex gap-2 p-1 bg-zinc-100 rounded-lg max-w-sm mb-4">
-                         <button
-                           type="button"
-                           onClick={() => updateEditorField('pricingMode', 'dynamic')}
-                           className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md transition-all ${
-                             editorState.pricingMode === 'dynamic' || !editorState.pricingMode
-                               ? 'bg-white text-zinc-900 shadow-sm'
-                               : 'text-zinc-500 hover:text-zinc-950'
-                           }`}
-                         >
-                           📊 Calculated Estimate
-                         </button>
-                         <button
-                           type="button"
-                           onClick={() => updateEditorField('pricingMode', 'fixed')}
-                           className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md transition-all ${
-                             editorState.pricingMode === 'fixed'
-                               ? 'bg-white text-zinc-900 shadow-sm'
-                               : 'text-zinc-500 hover:text-zinc-950'
-                           }`}
-                         >
-                           🏷️ Fixed Catalog Price
-                         </button>
-                       </div>
+                    {/* Pricing Mode Selection */}
+                    <div className="border-t border-zinc-100 pt-4">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Pricing Mode</label>
+                      <div className="flex gap-2 p-1 bg-zinc-100 rounded-lg max-w-sm mb-4">
+                        <button
+                          type="button"
+                          onClick={() => updateEditorField('pricingMode', 'dynamic')}
+                          className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md transition-all ${editorState.pricingMode === 'dynamic' || !editorState.pricingMode
+                            ? 'bg-white text-zinc-900 shadow-sm'
+                            : 'text-zinc-500 hover:text-zinc-950'
+                            }`}
+                        >
+                          📊 Calculated Estimate
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateEditorField('pricingMode', 'fixed')}
+                          className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md transition-all ${editorState.pricingMode === 'fixed'
+                            ? 'bg-white text-zinc-900 shadow-sm'
+                            : 'text-zinc-500 hover:text-zinc-950'
+                            }`}
+                        >
+                          🏷️ Fixed Catalog Price
+                        </button>
+                      </div>
 
-                       {editorState.pricingMode === 'fixed' && (
-                         <div className="grid grid-cols-3 gap-4 bg-zinc-50 border border-zinc-200/60 rounded-xl p-4 animate-in slide-in-from-top-1 duration-200">
-                           <div>
-                             <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Quantity</label>
-                             <input
-                               type="number"
-                               value={editorState.fixedQuantity === 0 ? '' : editorState.fixedQuantity}
-                               onChange={(e) => updateEditorField('fixedQuantity', e.target.value === '' ? 0 : Number(e.target.value))}
-                               placeholder="e.g., 1"
-                               className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-bold"
-                             />
-                           </div>
-                           <div>
-                             <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Fixed Standard (PHP)</label>
-                             <input
-                               type="number"
-                               value={editorState.fixedStandardPrice === 0 ? '' : editorState.fixedStandardPrice}
-                               onChange={(e) => updateEditorField('fixedStandardPrice', e.target.value === '' ? 0 : Number(e.target.value))}
-                               placeholder="e.g., 500"
-                               className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-bold"
-                             />
-                           </div>
-                           <div>
-                             <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Fixed Family (PHP)</label>
-                             <input
-                               type="number"
-                               value={editorState.fixedFamilyPrice === 0 ? '' : editorState.fixedFamilyPrice}
-                               onChange={(e) => updateEditorField('fixedFamilyPrice', e.target.value === '' ? 0 : Number(e.target.value))}
-                               placeholder="e.g., 350"
-                               className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-bold"
-                             />
-                           </div>
-                           <p className="col-span-3 text-[10px] text-zinc-400 font-medium italic mt-1 leading-normal">
-                             * Internal production costs (materials, labor, wear & tear) will still be tracked for exact margin reporting, but standard and family tier billable totals are locked to these pre-sets.
-                           </p>
-                         </div>
-                       )}
-                     </div>
+                      {editorState.pricingMode === 'fixed' && (
+                        <div className="grid grid-cols-3 gap-4 bg-zinc-50 border border-zinc-200/60 rounded-xl p-4 animate-in slide-in-from-top-1 duration-200">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Quantity</label>
+                            <input
+                              type="number"
+                              value={editorState.fixedQuantity === 0 ? '' : editorState.fixedQuantity}
+                              onChange={(e) => updateEditorField('fixedQuantity', e.target.value === '' ? 0 : Number(e.target.value))}
+                              placeholder="e.g., 1"
+                              className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-bold"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Fixed Standard (PHP)</label>
+                            <input
+                              type="number"
+                              value={editorState.fixedStandardPrice === 0 ? '' : editorState.fixedStandardPrice}
+                              onChange={(e) => updateEditorField('fixedStandardPrice', e.target.value === '' ? 0 : Number(e.target.value))}
+                              placeholder="e.g., 500"
+                              className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-bold"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Fixed Family (PHP)</label>
+                            <input
+                              type="number"
+                              value={editorState.fixedFamilyPrice === 0 ? '' : editorState.fixedFamilyPrice}
+                              onChange={(e) => updateEditorField('fixedFamilyPrice', e.target.value === '' ? 0 : Number(e.target.value))}
+                              placeholder="e.g., 350"
+                              className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-bold"
+                            />
+                          </div>
+                          <p className="col-span-3 text-[10px] text-zinc-400 font-medium italic mt-1 leading-normal">
+                            * Internal production costs (materials, labor, wear & tear) will still be tracked for exact margin reporting, but standard and family tier billable totals are locked to these pre-sets.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Product Photo</label>
                       <div className="space-y-3">
@@ -1002,11 +1004,11 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                         </div>
 
                         <div className="flex gap-4 items-start">
-                          <input 
-                            value={editorState.imageUrl || ''} 
-                            onChange={(e) => updateEditorField('imageUrl', e.target.value)} 
+                          <input
+                            value={editorState.imageUrl || ''}
+                            onChange={(e) => updateEditorField('imageUrl', e.target.value)}
                             placeholder="https://images.unsplash.com/... or paste image URL"
-                            className={fieldClass} 
+                            className={fieldClass}
                           />
                           {editorState.imageUrl && (
                             <div className="w-12 h-12 rounded-md border border-zinc-200 overflow-hidden bg-zinc-50 shrink-0 shadow-sm flex items-center justify-center relative group">
@@ -1104,99 +1106,100 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                               </button>
                             )}
                           </div>
-                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 border-b border-zinc-200 bg-zinc-50/50">
-                          <div className="flex flex-col gap-2">
-                            <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500">Print Timeline</label>
-                            <div className="grid grid-cols-2 gap-2">
+                          <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 border-b border-zinc-200 bg-zinc-50/50">
+                            <div className="flex flex-col gap-2">
+                              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500">Print Timeline</label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    value={plate.printTimeHours}
+                                    onChange={(e) => updatePlate(plate.id, 'printTimeHours', e.target.value === '' ? '' : Number(e.target.value))}
+                                    className={`${fieldClass} pr-12`}
+                                  />
+                                  <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none uppercase">hrs</span>
+                                </div>
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    value={plate.printTimeMinutes}
+                                    onChange={(e) => updatePlate(plate.id, 'printTimeMinutes', e.target.value === '' ? '' : Number(e.target.value))}
+                                    className={`${fieldClass} pr-12`}
+                                  />
+                                  <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none uppercase">mins</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500">Filament Changes</label>
                               <div className="relative">
                                 <input
                                   type="number"
-                                  value={plate.printTimeHours}
-                                  onChange={(e) => updatePlate(plate.id, 'printTimeHours', e.target.value === '' ? '' : Number(e.target.value))}
+                                  value={plate.filamentChangeCount}
+                                  onChange={(e) => updatePlate(plate.id, 'filamentChangeCount', e.target.value === '' ? '' : Number(e.target.value))}
                                   className={`${fieldClass} pr-12`}
                                 />
-                                <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none uppercase">hrs</span>
-                              </div>
-                              <div className="relative">
-                                <input
-                                  type="number"
-                                  value={plate.printTimeMinutes}
-                                  onChange={(e) => updatePlate(plate.id, 'printTimeMinutes', e.target.value === '' ? '' : Number(e.target.value))}
-                                  className={`${fieldClass} pr-12`}
-                                />
-                                <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none uppercase">mins</span>
+                                <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none uppercase">qty</span>
                               </div>
                             </div>
                           </div>
-                          <div className="flex flex-col gap-2">
-                            <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500">Filament Changes</label>
-                            <div className="relative">
-                              <input
-                                type="number"
-                                value={plate.filamentChangeCount}
-                                onChange={(e) => updatePlate(plate.id, 'filamentChangeCount', e.target.value === '' ? '' : Number(e.target.value))}
-                                className={`${fieldClass} pr-12`}
-                              />
-                              <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none uppercase">qty</span>
+                          <div className="p-4 bg-white">
+                            <div className="flex items-center justify-between mb-3">
+                              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500">Filaments Used</label>
+                              <button onClick={() => addPlateFilament(plate.id)} className="text-[11px] font-medium text-zinc-700 bg-zinc-100 hover:bg-zinc-200 px-2 py-1.5 rounded transition-colors flex items-center gap-1">
+                                <Plus className="w-3 h-3" /> Add Filament
+                              </button>
+                            </div>
+                            <div className="space-y-3">
+                              {plate.filaments.map((filament, fIndex) => (
+                                <div key={filament.id} className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr_auto] gap-4 md:gap-3 items-end bg-zinc-50/50 p-4 md:p-3 rounded border border-zinc-100">
+                                  <div>
+                                    <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Filament {fIndex + 1}</label>
+                                    <select value={filament.inventoryId} onChange={(e) => updatePlateFilamentInventory(plate.id, filament.id, e.target.value)} className={fieldClass}>
+                                      <option value="">— select filament —</option>
+                                      {inventoryFilaments.map((inv) => (
+                                        <option key={inv.id} value={String(inv.id)}>{inv.type} – {inv.color} ({inv.brand})</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Weight Used</label>
+                                    <div className="relative">
+                                      <input
+                                        type="number"
+                                        value={filament.weight}
+                                        onChange={(e) => updatePlateFilament(plate.id, filament.id, 'weight', e.target.value === '' ? '' : Number(e.target.value))}
+                                        className={`${fieldClass} pr-9`}
+                                      />
+                                      <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">g</span>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Cost Rate</label>
+                                    <div className="relative">
+                                      <input
+                                        type="number"
+                                        value={filament.costPerKg}
+                                        onChange={(e) => updatePlateFilament(plate.id, filament.id, 'costPerKg', e.target.value === '' ? '' : Number(e.target.value))}
+                                        className={`${fieldClass} pr-12`}
+                                      />
+                                      <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">PHP/kg</span>
+                                    </div>
+                                  </div>
+                                  <div className="flex h-[38px] items-center">
+                                    {plate.filaments.length > 1 && (
+                                      <button onClick={() => removePlateFilament(plate.id, filament.id)} className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </div>
                         </div>
-                        <div className="p-4 bg-white">
-                          <div className="flex items-center justify-between mb-3">
-                            <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500">Filaments Used</label>
-                            <button onClick={() => addPlateFilament(plate.id)} className="text-[11px] font-medium text-zinc-700 bg-zinc-100 hover:bg-zinc-200 px-2 py-1.5 rounded transition-colors flex items-center gap-1">
-                              <Plus className="w-3 h-3" /> Add Filament
-                            </button>
-                          </div>
-                          <div className="space-y-3">
-                            {plate.filaments.map((filament, fIndex) => (
-                              <div key={filament.id} className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr_auto] gap-4 md:gap-3 items-end bg-zinc-50/50 p-4 md:p-3 rounded border border-zinc-100">
-                                <div>
-                                  <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Filament {fIndex + 1}</label>
-                                  <select value={filament.inventoryId} onChange={(e) => updatePlateFilamentInventory(plate.id, filament.id, e.target.value)} className={fieldClass}>
-                                    <option value="">— select filament —</option>
-                                    {inventoryFilaments.map((inv) => (
-                                      <option key={inv.id} value={String(inv.id)}>{inv.type} – {inv.color} ({inv.brand})</option>
-                                    ))}
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Weight Used</label>
-                                  <div className="relative">
-                                    <input
-                                      type="number"
-                                      value={filament.weight}
-                                      onChange={(e) => updatePlateFilament(plate.id, filament.id, 'weight', e.target.value === '' ? '' : Number(e.target.value))}
-                                      className={`${fieldClass} pr-9`}
-                                    />
-                                    <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">g</span>
-                                  </div>
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Cost Rate</label>
-                                  <div className="relative">
-                                    <input
-                                      type="number"
-                                      value={filament.costPerKg}
-                                      onChange={(e) => updatePlateFilament(plate.id, filament.id, 'costPerKg', e.target.value === '' ? '' : Number(e.target.value))}
-                                      className={`${fieldClass} pr-12`}
-                                    />
-                                    <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">PHP/kg</span>
-                                  </div>
-                                </div>
-                                <div className="flex h-[38px] items-center">
-                                  {plate.filaments.length > 1 && (
-                                    <button onClick={() => removePlateFilament(plate.id, filament.id)} className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )})}
+                      )
+                    })}
                   </div>
                 </section>
 
@@ -1350,62 +1353,125 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                 </section>
               </div>
 
-              <div className="w-full lg:w-[360px] lg:sticky lg:top-0">
+              <div className="w-full lg:w-[360px] lg:sticky lg:top-0 space-y-6">
+                {/* Cost Breakdown Card */}
                 <div className="bg-white border border-zinc-300 shadow-xl shadow-zinc-100 rounded-lg overflow-hidden flex flex-col">
                   <div className="p-5 border-b border-zinc-200 bg-zinc-50 flex items-center gap-2">
                     <Calculator className="w-4 h-4 text-zinc-500" />
-                    <h2 className="text-sm font-bold tracking-tight text-zinc-900 uppercase">Financial Summary</h2>
+                    <h2 className="text-sm font-bold tracking-tight text-zinc-900 uppercase">Cost Breakdown</h2>
                   </div>
                   <div className="p-6">
                     <div className="space-y-3 font-medium text-sm text-zinc-600 border-b border-zinc-100 pb-5">
-                      <div className="flex justify-between items-center"><span>Material Allocation</span><span className="text-zinc-900">{formatMoney(totals.filCost)}</span></div>
-                      <div className="flex justify-between items-center"><span>Utility & Infrastructure <span className="text-xs text-zinc-400 font-normal">({totals.totalKWh.toFixed(1)} kWh)</span></span><span className="text-zinc-900">{formatMoney(totals.elecCost)}</span></div>
-                      <div className="flex justify-between items-center pt-1.5 border-t border-dashed border-zinc-200"><span className="font-semibold text-zinc-800">Material & Utility Combined</span><span className="font-semibold text-zinc-900">{formatMoney(totals.filCost + totals.elecCost)}</span></div>
-                      {totals.wearTearCost > 0 && <div className="flex justify-between items-center"><span>Machine Wear & Tear</span><span className="text-zinc-900">{formatMoney(totals.wearTearCost)}</span></div>}
-                      {totals.failureBufferCost > 0 && <div className="flex justify-between items-center pt-1"><span className="italic">Ops Waste Buffer <span className="text-xs text-zinc-400 font-normal">({config.failureRatePercent}%)</span></span><span className="text-zinc-900 italic">+{formatMoney(totals.failureBufferCost)}</span></div>}
-                      <div className="flex justify-between items-center pt-2 border-t border-zinc-100 mt-2"><span>Direct Labor</span><span className="text-zinc-900">{formatMoney(totals.laborCost)}</span></div>
-                      {editorState.materials.length > 0 && <div className="flex justify-between items-center"><span>Supplementary</span><span className="text-zinc-900">{formatMoney(totals.supplementaryMatCost)}</span></div>}
-                      {(readValue(editorState.packagingCost) > 0 || readValue(editorState.shippingCost) > 0 || readValue(editorState.miscellaneousCost) > 0) && <div className="flex justify-between items-center pt-2 border-t border-zinc-100 mt-2"><span>Logistics & Overheads</span><span className="text-zinc-900">{formatMoney(totals.logisticsCost)}</span></div>}
-                      {totals.markupCost > 0 && <div className="flex justify-between items-center pt-2 border-t border-zinc-100 mt-2"><span className="font-semibold text-emerald-600">Markup Profit <span className="text-xs font-normal">({totals.markupPercent}%)</span></span><span className="text-emerald-700 font-semibold">+{formatMoney(totals.markupCost)}</span></div>}
+                      <div className="flex justify-between items-center"><span>Materials</span><span className="text-zinc-900">₱{formatMoney(totals.filCost)}</span></div>
+                      <div className="flex justify-between items-center"><span>Utilities</span><span className="text-zinc-900">₱{formatMoney(totals.elecCost)}</span></div>
+                      {editorState.materials.length > 0 && <div className="flex justify-between items-center"><span>Supplementary</span><span className="text-zinc-900">₱{formatMoney(totals.supplementaryMatCost)}</span></div>}
+                      {totals.laborCost > 0 && <div className="flex justify-between items-center"><span>Labor</span><span className="text-zinc-900">₱{formatMoney(totals.laborCost)}</span></div>}
                     </div>
 
-                    <div className="pt-2 flex flex-col items-end">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1">Override Final Sell Price (Optional)</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder={`Calc: PHP ${formatMoney(totals.calculatedPrice)}`}
-                        value={editorState.customFinalPrice}
-                        onChange={e => updateEditorField('customFinalPrice', e.target.value)}
-                        className="w-48 px-3 py-1.5 text-right bg-zinc-50 border border-zinc-200 rounded-md text-sm font-medium mb-4 focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors"
-                      />
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1">Amount Paid</span>
-                      <div className="relative mb-4">
+                    <div className="pt-4 flex flex-col items-end">
+                      <span className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-1">TOTAL COST</span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-lg font-semibold text-zinc-400">₱</span>
+                        <span className="text-4xl font-extrabold text-zinc-900 tracking-tight">{formatMoney(displayTotalCost)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pricing Summary & Allocations Card */}
+                <div className="bg-white border border-zinc-300 shadow-xl shadow-zinc-100 rounded-lg overflow-hidden flex flex-col">
+                  <div className="p-5 border-b border-zinc-200 bg-zinc-50 flex items-center gap-2">
+                    <Coins className="w-4 h-4 text-zinc-500" />
+                    <h2 className="text-sm font-bold tracking-tight text-zinc-900 uppercase">Pricing Summary & Allocations</h2>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="flex justify-between items-center group">
+                      <span className="font-semibold text-xs uppercase tracking-wider text-zinc-500">Selling Price</span>
+                      <div className="relative w-40">
+                        <span className="absolute inset-y-0 left-3 flex items-center text-zinc-400 text-sm font-bold pointer-events-none">₱</span>
                         <input
                           type="number"
                           min="0"
                           step="0.01"
-                          placeholder="0.00"
-                          value={editorState.amountPaid}
-                          onChange={e => updateEditorField('amountPaid', e.target.value)}
-                          className="w-48 px-3 py-1.5 text-right bg-zinc-50 border border-zinc-200 rounded-md text-sm font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors pr-12"
+                          placeholder={formatMoney(totals.calculatedPrice)}
+                          value={editorState.customFinalPrice}
+                          onChange={e => updateEditorField('customFinalPrice', e.target.value)}
+                          className="w-full pl-7 pr-3 py-1.5 text-right bg-zinc-50 border border-zinc-200 rounded-md text-sm font-bold text-zinc-950 focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors"
                         />
-                        <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">PHP</span>
                       </div>
-                      <span className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-1">Total Billable</span>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-lg font-semibold text-zinc-400">PHP</span>
-                        <span className="text-4xl font-extrabold text-zinc-900 tracking-tight">{formatMoney(totals.finalPrice)}</span>
+                    </div>
+                    {editorState.customFinalPrice !== '' && (
+                      <div className="text-right">
+                        <button
+                          type="button"
+                          onClick={() => updateEditorField('customFinalPrice', '')}
+                          className="text-[10px] text-zinc-400 hover:text-zinc-600 underline font-semibold transition-colors"
+                        >
+                          Reset to Suggested (₱{formatMoney(totals.calculatedPrice)})
+                        </button>
                       </div>
-                      {editorState.customFinalPrice !== '' && (
-                        <span className="text-[10px] text-zinc-400 mt-1 uppercase font-semibold tracking-wider bg-zinc-100 px-2 py-0.5 rounded text-red-500">
-                          Overridden (Calc: {formatMoney(totals.calculatedPrice)})
+                    )}
+
+                    <div className="flex justify-between items-center font-medium text-sm text-zinc-600 border-t border-zinc-100 pt-3">
+                      <span>Total Cost</span>
+                      <span className="text-zinc-900 font-semibold">₱{formatMoney(displayTotalCost)}</span>
+                    </div>
+
+                    {(() => {
+                      const grossProfitVal = totals.finalPrice - displayTotalCost;
+                      const machineWearVal = totals.wearTearCost;
+                      const wasteReserveVal = totals.failureBufferCost;
+                      const netProfitVal = grossProfitVal - machineWearVal - wasteReserveVal;
+
+                      return (
+                        <div className="space-y-3 pt-3 border-t border-zinc-100 font-medium text-sm text-zinc-600">
+                          <div className="flex justify-between items-center font-bold text-zinc-900">
+                            <span>Gross Profit</span>
+                            <span>₱{formatMoney(grossProfitVal)}</span>
+                          </div>
+
+                          <div className="flex justify-between items-center text-xs pl-2 text-zinc-500">
+                            <span>Machine Wear</span>
+                            <span>₱{formatMoney(machineWearVal)}</span>
+                          </div>
+
+                          <div className="flex justify-between items-center text-xs pl-2 text-zinc-500">
+                            <span>Waste Reserve</span>
+                            <span>₱{formatMoney(wasteReserveVal)}</span>
+                          </div>
+
+                          <div className="flex justify-between items-center font-bold border-t border-dashed border-zinc-200 pt-3 text-zinc-900">
+                            <span>Net Profit</span>
+                            <span className={netProfitVal >= 0 ? 'text-zinc-900' : 'text-red-600'}>
+                              ₱{formatMoney(netProfitVal)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    <div className="pt-3 border-t border-zinc-100 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-xs uppercase tracking-wider text-zinc-500">Amount Paid</span>
+                        <div className="relative w-40">
+                          <span className="absolute inset-y-0 left-3 flex items-center text-zinc-400 text-sm font-bold pointer-events-none">₱</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={editorState.amountPaid}
+                            onChange={e => updateEditorField('amountPaid', e.target.value)}
+                            className="w-full pl-7 pr-3 py-1.5 text-right bg-zinc-50 border border-zinc-200 rounded-md text-sm font-bold text-zinc-950 focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center font-semibold text-sm pt-2">
+                        <span className="text-zinc-500">Remaining Balance</span>
+                        <span className="text-zinc-900 font-bold">
+                          ₱{formatMoney(Math.max(0, totals.finalPrice - Number(editorState.amountPaid || 0)))}
                         </span>
-                      )}
-                      <div className="flex items-baseline justify-between w-full mt-3 pt-3 border-t border-zinc-100 text-xs text-zinc-500 font-semibold">
-                        <span>Remaining Balance:</span>
-                        <span className="text-sm font-bold text-zinc-900">PHP {formatMoney(Math.max(0, totals.finalPrice - Number(editorState.amountPaid || 0)))}</span>
                       </div>
                     </div>
                   </div>
@@ -1464,49 +1530,130 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                 </div>
               </div>
 
-              <div className="border border-zinc-200 rounded-lg overflow-hidden">
-                <div className="bg-zinc-50 px-5 py-3 border-b border-zinc-200 flex items-center justify-between">
-                  <h4 className="font-semibold text-zinc-900 text-sm uppercase tracking-wider flex items-center gap-2">
-                    <Calculator className="w-4 h-4 text-emerald-600" />
-                    Financial Snapshot
-                  </h4>
-                  <span className="text-xs text-zinc-500 font-medium tracking-wide bg-zinc-200/50 px-2 py-0.5 rounded">{data.financial_breakdown ? 'Fixed' : 'Unavailable'}</span>
-                </div>
-                {data.financial_breakdown ? (
-                  <div className="p-5 flex flex-col gap-3 text-sm text-zinc-600">
-                    <div className="flex justify-between items-center"><span>Material Allocation</span><span className="text-zinc-900">{formatMoney(data.financial_breakdown.filamentCost)}</span></div>
-                    <div className="flex justify-between items-center"><span>Utility & Infrastructure <span className="text-xs text-zinc-400">({Number.parseFloat(data.financial_breakdown.totalKWh || 0).toFixed(1)} kWh)</span></span><span className="text-zinc-900">{formatMoney(data.financial_breakdown.electricityCost)}</span></div>
-                    <div className="flex justify-between items-center pt-1.5 border-t border-dashed border-zinc-200"><span className="font-semibold text-zinc-800">Material & Utility Combined</span><span className="font-semibold text-zinc-900">{formatMoney(Number(data.financial_breakdown.filamentCost) + Number(data.financial_breakdown.electricityCost))}</span></div>
-                    {data.financial_breakdown.wearTearCost > 0 && <div className="flex justify-between items-center"><span>Machine Wear & Tear</span><span className="text-zinc-900">{formatMoney(data.financial_breakdown.wearTearCost)}</span></div>}
-                    {data.financial_breakdown.failureBufferCost > 0 && <div className="flex justify-between items-center italic text-zinc-500"><span>Ops Waste Buffer <span className="text-xs text-zinc-400">({data.financial_breakdown.failureRatePercent}%)</span></span><span className="text-zinc-900">+{formatMoney(data.financial_breakdown.failureBufferCost)}</span></div>}
-                    <div className="flex justify-between items-center border-t border-zinc-100 pt-3 mt-1"><span>Direct Labor</span><span className="text-zinc-900">{formatMoney(data.financial_breakdown.laborCost)}</span></div>
-                    {data.financial_breakdown.supplementaryMatCost > 0 && <div className="flex justify-between items-center"><span>Supplementary</span><span className="text-zinc-900">{formatMoney(data.financial_breakdown.supplementaryMatCost)}</span></div>}
-                    {data.financial_breakdown.logisticsCost > 0 && <div className="flex justify-between items-center"><span>Logistics & Overheads</span><span className="text-zinc-900">{formatMoney(data.financial_breakdown.logisticsCost)}</span></div>}
-                    {data.financial_breakdown.markupCost > 0 && <div className="flex justify-between items-center border-t border-zinc-100 pt-3 mt-1"><span className="font-semibold text-emerald-600">Markup Profit <span className="text-xs font-normal">({data.financial_breakdown.markupPercent}%)</span></span><span className="text-emerald-700 font-semibold">+{formatMoney(data.financial_breakdown.markupCost)}</span></div>}
-                    <div className="flex flex-col items-end pt-5 border-t border-zinc-200 mt-2">
-                      <span className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-1">Total Billable</span>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-lg font-semibold text-zinc-400">PHP</span>
-                        <span className="text-4xl font-extrabold text-zinc-900 tracking-tight">{formatMoney(data.total_price)}</span>
-                      </div>
-                      <div className="flex justify-between items-center w-full mt-3 pt-3 border-t border-zinc-100 text-sm">
-                        <span className="text-zinc-500 font-semibold">Amount Paid</span>
-                        <span className="font-bold text-emerald-600">PHP {formatMoney(data.financial_breakdown?.amountPaid || 0)}</span>
-                      </div>
-                      <div className="flex justify-between items-center w-full mt-1.5 text-sm">
-                        <span className="text-zinc-500 font-semibold">Remaining Balance</span>
-                        <span className="font-bold text-zinc-900">PHP {formatMoney(Math.max(0, data.total_price - (data.financial_breakdown?.amountPaid || 0)))}</span>
+              {data.financial_breakdown ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Card 1: Cost Breakdown */}
+                  <div className="border border-zinc-200 rounded-lg overflow-hidden flex flex-col bg-white shadow-sm">
+                    <div className="bg-zinc-50 px-5 py-3 border-b border-zinc-200 flex items-center justify-between">
+                      <h4 className="font-semibold text-zinc-900 text-sm uppercase tracking-wider flex items-center gap-2">
+                        <Calculator className="w-4 h-4 text-zinc-500" />
+                        Cost Breakdown
+                      </h4>
+                      <span className="text-xs text-zinc-500 font-medium tracking-wide bg-zinc-200/50 px-2 py-0.5 rounded">Snapshot</span>
+                    </div>
+                    <div className="p-5 flex flex-col gap-3 text-sm text-zinc-600 flex-1">
+                      <div className="flex justify-between items-center"><span><span>Materials</span></span><span className="text-zinc-900">₱{formatMoney(data.financial_breakdown.filamentCost)}</span></div>
+                      <div className="flex justify-between items-center"><span><span>Utilities</span></span><span className="text-zinc-900">₱{formatMoney(data.financial_breakdown.electricityCost)}</span></div>
+                      {Number(data.financial_breakdown.supplementaryMatCost || 0) > 0 && <div className="flex justify-between items-center"><span><span>Supplementary</span></span><span className="text-zinc-900">₱{formatMoney(data.financial_breakdown.supplementaryMatCost)}</span></div>}
+                      {Number(data.financial_breakdown.laborCost || 0) > 0 && <div className="flex justify-between items-center"><span><span>Labor</span></span><span className="text-zinc-900">₱{formatMoney(data.financial_breakdown.laborCost)}</span></div>}
+                      
+                      <div className="flex flex-col items-end pt-5 border-t border-zinc-200 mt-auto">
+                        <span className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-1">TOTAL COST</span>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-lg font-semibold text-zinc-400">₱</span>
+                          <span className="text-4xl font-extrabold text-zinc-900 tracking-tight">
+                            {formatMoney(
+                              Number(data.financial_breakdown.filamentCost || 0) +
+                              Number(data.financial_breakdown.electricityCost || 0) +
+                              Number(data.financial_breakdown.supplementaryMatCost || 0) +
+                              Number(data.financial_breakdown.laborCost || 0)
+                            )}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="bg-zinc-50 border-t border-zinc-200 border-dashed p-6 flex flex-col items-center justify-center text-center">
+
+                  {/* Card 2: Pricing Summary & Allocations */}
+                  <div className="border border-zinc-200 rounded-lg overflow-hidden flex flex-col bg-white shadow-sm">
+                    <div className="bg-zinc-50 px-5 py-3 border-b border-zinc-200 flex items-center justify-between">
+                      <h4 className="font-semibold text-zinc-900 text-sm uppercase tracking-wider flex items-center gap-2">
+                        <Coins className="w-4 h-4 text-zinc-500" />
+                        Pricing Summary & Allocations
+                      </h4>
+                    </div>
+                    <div className="p-5 flex flex-col gap-3 text-sm text-zinc-600 flex-1">
+                      {(() => {
+                        const totalCost = 
+                          Number(data.financial_breakdown.filamentCost || 0) +
+                          Number(data.financial_breakdown.electricityCost || 0) +
+                          Number(data.financial_breakdown.supplementaryMatCost || 0) +
+                          Number(data.financial_breakdown.laborCost || 0);
+                        const sellingPrice = data.total_price || 0;
+                        const grossProfit = sellingPrice - totalCost;
+                        const machineWear = Number(data.financial_breakdown.wearTearCost || 0);
+                        const wasteReserve = Number(data.financial_breakdown.failureBufferCost || 0);
+                        const netProfit = grossProfit - machineWear - wasteReserve;
+                        const amountPaid = data.financial_breakdown.amountPaid || 0;
+                        const remainingBalance = Math.max(0, sellingPrice - amountPaid);
+
+                        return (
+                          <>
+                            <div className="flex justify-between items-center font-bold text-zinc-900">
+                              <span className="text-xs uppercase tracking-wider text-zinc-500 font-semibold">Selling Price</span>
+                              <span>₱{formatMoney(sellingPrice)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span>Total Cost</span>
+                              <span>₱{formatMoney(totalCost)}</span>
+                            </div>
+
+                            <div className="space-y-3 pt-3 border-t border-zinc-100">
+                              <div className="flex justify-between items-center font-bold text-zinc-900">
+                                <span>Gross Profit</span>
+                                <span>₱{formatMoney(grossProfit)}</span>
+                              </div>
+
+                              <div className="flex justify-between items-center text-xs pl-2 text-zinc-500">
+                                <span>Machine Wear</span>
+                                <span>₱{formatMoney(machineWear)}</span>
+                              </div>
+
+                              <div className="flex justify-between items-center text-xs pl-2 text-zinc-500">
+                                <span>Waste Reserve</span>
+                                <span>₱{formatMoney(wasteReserve)}</span>
+                              </div>
+
+                              <div className="flex justify-between items-center font-bold border-t border-dashed border-zinc-200 pt-3 text-zinc-900">
+                                <span>Net Profit</span>
+                                <span className={netProfit >= 0 ? 'text-zinc-900' : 'text-red-600'}>
+                                  ₱{formatMoney(netProfit)}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="pt-4 border-t border-zinc-200 space-y-3 mt-auto">
+                              <div className="flex justify-between items-center">
+                                <span>Amount Paid</span>
+                                <span className="font-bold text-emerald-600">₱{formatMoney(amountPaid)}</span>
+                              </div>
+                              <div className="flex justify-between items-center font-bold border-t border-dashed border-zinc-100 pt-2 text-zinc-950">
+                                <span>Remaining Balance</span>
+                                <span>₱{formatMoney(remainingBalance)}</span>
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="border border-zinc-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                  <div className="bg-zinc-50 px-5 py-3 border-b border-zinc-200 flex items-center justify-between">
+                    <h4 className="font-semibold text-zinc-900 text-sm uppercase tracking-wider flex items-center gap-2">
+                      <Calculator className="w-4 h-4 text-zinc-500" />
+                      Cost Breakdown
+                    </h4>
+                    <span className="text-xs text-zinc-500 font-medium tracking-wide bg-zinc-200/50 px-2 py-0.5 rounded">Unavailable</span>
+                  </div>
+                  <div className="bg-zinc-50 p-6 flex flex-col items-center justify-center text-center">
                     <Calculator className="w-6 h-6 text-zinc-300 mb-2" />
                     <p className="text-sm font-semibold text-zinc-500">Financial Snapshot Unavailable</p>
                     <p className="text-xs text-zinc-400 mt-1 max-w-[280px]">Legacy orders processed prior to the database upgrade do not contain price snapshots.</p>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>

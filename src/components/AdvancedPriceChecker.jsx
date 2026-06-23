@@ -179,14 +179,14 @@ export default function AdvancedPriceChecker({ config }) {
       const template = e.detail;
       if (template) {
         dispatch({ type: 'LOAD_TEMPLATE', template });
-        
+
         // Pre-fill custom final price if overridden
         if (template.customFinalPrice !== undefined) {
           setCustomFinalPrice(template.customFinalPrice || '');
         } else {
           setCustomFinalPrice('');
         }
-        
+
         alert(`Successfully loaded recipe blueprint for "${template.itemName || 'Unnamed Item'}"! You can now adjust materials or save as a new order.`);
       }
     };
@@ -344,12 +344,13 @@ export default function AdvancedPriceChecker({ config }) {
     (additionalServices.assembly ? (config?.assemblyCost || 350) : 0);
 
   const basePriceWithFailure = rawOpsCost + failureBufferCost + laborCost + matCost + logisticsCost + servicesCost;
+  const displayTotalCost = filCost + elecCost + matCost + laborCost;
   const isFamily = state.isFamilyPricing === true || state.isFamilyPricing === 'family';
   const isFree = state.isFamilyPricing === 'free';
-  
+
   const isFixedMode = state.pricingMode === 'fixed';
   const appliedMarkupPercent = isFree ? 0 : (isFamily ? (config?.familyMarkupPercent || 15) : (config?.markupPercent || 30));
-  
+
   const quantity = Math.max(1, parseInt(state.fixedQuantity) || 1);
   const calculatedFinalPrice = isFixedMode
     ? (isFree ? 0 : (isFamily ? Number(state.fixedFamilyPrice || 0) : Number(state.fixedStandardPrice || 0))) * quantity
@@ -548,22 +549,20 @@ export default function AdvancedPriceChecker({ config }) {
                 <button
                   type="button"
                   onClick={() => dispatch({ type: 'UPDATE_FIELD', field: 'pricingMode', value: 'dynamic' })}
-                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md transition-all ${
-                    state.pricingMode === 'dynamic' || !state.pricingMode
-                      ? 'bg-white text-zinc-900 shadow-sm'
-                      : 'text-zinc-500 hover:text-zinc-950'
-                  }`}
+                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md transition-all ${state.pricingMode === 'dynamic' || !state.pricingMode
+                    ? 'bg-white text-zinc-900 shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-950'
+                    }`}
                 >
                   📊 Calculated Estimate
                 </button>
                 <button
                   type="button"
                   onClick={() => dispatch({ type: 'UPDATE_FIELD', field: 'pricingMode', value: 'fixed' })}
-                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md transition-all ${
-                    state.pricingMode === 'fixed'
-                      ? 'bg-white text-zinc-900 shadow-sm'
-                      : 'text-zinc-500 hover:text-zinc-950'
-                  }`}
+                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md transition-all ${state.pricingMode === 'fixed'
+                    ? 'bg-white text-zinc-900 shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-950'
+                    }`}
                 >
                   🏷️ Fixed Catalog Price
                 </button>
@@ -616,7 +615,7 @@ export default function AdvancedPriceChecker({ config }) {
               <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">
                 Product Photo
               </label>
-              
+
               <div className="space-y-3">
                 <div className="flex flex-wrap gap-2.5 items-center">
                   <input
@@ -745,150 +744,151 @@ export default function AdvancedPriceChecker({ config }) {
                         </span>
                       </div>
                     </div>
-                  {state.plates.length > 1 && (
-                    <button
-                      onClick={() => dispatch({ type: 'REMOVE_PLATE', id: plate.id })}
-                      className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors tooltip relative group"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span className="hidden group-hover:block absolute bottom-full mb-2 right-0 whitespace-nowrap bg-zinc-800 text-white text-[10px] px-2 py-1 rounded">Remove Plate</span>
-                    </button>
-                  )}
-                </div>
+                    {state.plates.length > 1 && (
+                      <button
+                        onClick={() => dispatch({ type: 'REMOVE_PLATE', id: plate.id })}
+                        className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors tooltip relative group"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span className="hidden group-hover:block absolute bottom-full mb-2 right-0 whitespace-nowrap bg-zinc-800 text-white text-[10px] px-2 py-1 rounded">Remove Plate</span>
+                      </button>
+                    )}
+                  </div>
 
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-5 border-b border-zinc-200 bg-zinc-50/50">
-                  <div className="flex flex-col gap-2">
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500">Print Timeline</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="relative">
-                        <input
-                          type="number" min="0" step="1"
-                          value={plate.printTimeHours}
-                          onChange={(e) => dispatch({ type: 'UPDATE_PLATE', id: plate.id, field: 'printTimeHours', value: e.target.value === '' ? '' : Number(e.target.value) })}
-                          className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 text-left pr-12 font-medium"
-                        />
-                        <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none uppercase">hrs</span>
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-5 border-b border-zinc-200 bg-zinc-50/50">
+                    <div className="flex flex-col gap-2">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500">Print Timeline</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="relative">
+                          <input
+                            type="number" min="0" step="1"
+                            value={plate.printTimeHours}
+                            onChange={(e) => dispatch({ type: 'UPDATE_PLATE', id: plate.id, field: 'printTimeHours', value: e.target.value === '' ? '' : Number(e.target.value) })}
+                            className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 text-left pr-12 font-medium"
+                          />
+                          <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none uppercase">hrs</span>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="number" min="0" max="59" step="1"
+                            value={plate.printTimeMinutes}
+                            onChange={(e) => dispatch({ type: 'UPDATE_PLATE', id: plate.id, field: 'printTimeMinutes', value: e.target.value === '' ? '' : Number(e.target.value) })}
+                            className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 text-left pr-12 font-medium"
+                          />
+                          <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none uppercase">mins</span>
+                        </div>
                       </div>
+                    </div>
+
+                    <div className="group relative">
+                      <label className="flex items-center text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">
+                        Filament Changes
+                        <div className="hidden group-hover:block ml-2 w-48 bg-zinc-800 text-zinc-50 text-[11px] rounded p-1.5 text-center absolute bottom-full mb-1 left-0 shadow-lg pointer-events-none z-10 normal-case tracking-normal">
+                          Allocates {config?.filamentChangeCost || 0.1} PHP per filament change.
+                        </div>
+                      </label>
                       <div className="relative">
                         <input
-                          type="number" min="0" max="59" step="1"
-                          value={plate.printTimeMinutes}
-                          onChange={(e) => dispatch({ type: 'UPDATE_PLATE', id: plate.id, field: 'printTimeMinutes', value: e.target.value === '' ? '' : Number(e.target.value) })}
+                          type="number" min="0"
+                          value={plate.filamentChangeCount}
+                          onChange={(e) => dispatch({ type: 'UPDATE_PLATE', id: plate.id, field: 'filamentChangeCount', value: e.target.value === '' ? '' : Number(e.target.value) })}
                           className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 text-left pr-12 font-medium"
                         />
-                        <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none uppercase">mins</span>
+                        <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none uppercase">qty</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="group relative">
-                    <label className="flex items-center text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">
-                      Filament Changes
-                      <div className="hidden group-hover:block ml-2 w-48 bg-zinc-800 text-zinc-50 text-[11px] rounded p-1.5 text-center absolute bottom-full mb-1 left-0 shadow-lg pointer-events-none z-10 normal-case tracking-normal">
-                        Allocates {config?.filamentChangeCost || 0.1} PHP per filament change.
-                      </div>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="number" min="0"
-                        value={plate.filamentChangeCount}
-                        onChange={(e) => dispatch({ type: 'UPDATE_PLATE', id: plate.id, field: 'filamentChangeCount', value: e.target.value === '' ? '' : Number(e.target.value) })}
-                        className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 text-left pr-12 font-medium"
-                      />
-                      <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none uppercase">qty</span>
+                  <div className="p-4 bg-white">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500">Filaments Used</label>
+                      <button
+                        onClick={() => dispatch({ type: 'ADD_PLATE_FILAMENT', plateId: plate.id })}
+                        className="text-[11px] font-medium text-zinc-700 bg-zinc-100 hover:bg-zinc-200 px-2 py-1.5 rounded transition-colors flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" /> Add Filament
+                      </button>
                     </div>
-                  </div>
-                </div>
 
-                <div className="p-4 bg-white">
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500">Filaments Used</label>
-                    <button
-                      onClick={() => dispatch({ type: 'ADD_PLATE_FILAMENT', plateId: plate.id })}
-                      className="text-[11px] font-medium text-zinc-700 bg-zinc-100 hover:bg-zinc-200 px-2 py-1.5 rounded transition-colors flex items-center gap-1"
-                    >
-                      <Plus className="w-3 h-3" /> Add Filament
-                    </button>
-                  </div>
+                    <div className="space-y-3">
+                      {plate.filaments.map((filament, fIndex) => (
+                        <div key={filament.id} className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr_auto] gap-4 md:gap-3 items-end bg-zinc-50/50 p-4 md:p-3 rounded border border-zinc-100">
 
-                  <div className="space-y-3">
-                    {plate.filaments.map((filament, fIndex) => (
-                      <div key={filament.id} className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr_auto] gap-4 md:gap-3 items-end bg-zinc-50/50 p-4 md:p-3 rounded border border-zinc-100">
+                          {/* Inventory Filament Selector */}
+                          <div>
+                            <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Filament {fIndex + 1}</label>
+                            {inventoryFilaments.length > 0 ? (
+                              <select
+                                value={filament.inventoryId ?? ''}
+                                onChange={(e) => {
+                                  const inv = inventoryFilaments.find(f => String(f.id) === e.target.value);
+                                  if (inv) {
+                                    dispatch({ type: 'UPDATE_PLATE_FILAMENT', plateId: plate.id, filamentId: filament.id, field: 'inventoryId', value: inv.id });
+                                    dispatch({ type: 'UPDATE_PLATE_FILAMENT', plateId: plate.id, filamentId: filament.id, field: 'costPerKg', value: inv.costPerKg });
+                                  } else {
+                                    dispatch({ type: 'UPDATE_PLATE_FILAMENT', plateId: plate.id, filamentId: filament.id, field: 'inventoryId', value: '' });
+                                  }
+                                }}
+                                className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900"
+                              >
+                                <option value="">— select filament —</option>
+                                {inventoryFilaments.map(inv => (
+                                  <option key={inv.id} value={String(inv.id)}>
+                                    {inv.type || inv.name}{inv.color ? ` – ${inv.color}` : ''}{inv.brand ? ` (${inv.brand})` : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className="px-3 py-2 bg-zinc-50 border border-dashed border-zinc-200 rounded-md text-xs text-zinc-400 italic">
+                                No inventory — add filaments in the Inventory tab
+                              </div>
+                            )}
+                          </div>
 
-                        {/* Inventory Filament Selector */}
-                        <div>
-                          <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Filament {fIndex + 1}</label>
-                          {inventoryFilaments.length > 0 ? (
-                            <select
-                              value={filament.inventoryId ?? ''}
-                              onChange={(e) => {
-                                const inv = inventoryFilaments.find(f => String(f.id) === e.target.value);
-                                if (inv) {
-                                  dispatch({ type: 'UPDATE_PLATE_FILAMENT', plateId: plate.id, filamentId: filament.id, field: 'inventoryId', value: inv.id });
-                                  dispatch({ type: 'UPDATE_PLATE_FILAMENT', plateId: plate.id, filamentId: filament.id, field: 'costPerKg', value: inv.costPerKg });
-                                } else {
-                                  dispatch({ type: 'UPDATE_PLATE_FILAMENT', plateId: plate.id, filamentId: filament.id, field: 'inventoryId', value: '' });
-                                }
-                              }}
-                              className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900"
-                            >
-                              <option value="">— select filament —</option>
-                              {inventoryFilaments.map(inv => (
-                                <option key={inv.id} value={String(inv.id)}>
-                                  {inv.type || inv.name}{inv.color ? ` – ${inv.color}` : ''}{inv.brand ? ` (${inv.brand})` : ''}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <div className="px-3 py-2 bg-zinc-50 border border-dashed border-zinc-200 rounded-md text-xs text-zinc-400 italic">
-                              No inventory — add filaments in the Inventory tab
+                          {/* Weight */}
+                          <div>
+                            <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Weight Used</label>
+                            <div className="relative">
+                              <input
+                                type="number" min="0" value={filament.weight}
+                                onChange={(e) => dispatch({ type: 'UPDATE_PLATE_FILAMENT', plateId: plate.id, filamentId: filament.id, field: 'weight', value: e.target.value === '' ? '' : Number(e.target.value) })}
+                                className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 text-left pr-9 font-medium"
+                              />
+                              <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">g</span>
                             </div>
-                          )}
-                        </div>
+                          </div>
 
-                        {/* Weight */}
-                        <div>
-                          <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Weight Used</label>
-                          <div className="relative">
-                            <input
-                              type="number" min="0" value={filament.weight}
-                              onChange={(e) => dispatch({ type: 'UPDATE_PLATE_FILAMENT', plateId: plate.id, filamentId: filament.id, field: 'weight', value: e.target.value === '' ? '' : Number(e.target.value) })}
-                              className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 text-left pr-9 font-medium"
-                            />
-                            <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">g</span>
+                          {/* Cost Rate (auto-filled from inventory, still editable) */}
+                          <div>
+                            <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Cost Rate</label>
+                            <div className="relative">
+                              <input
+                                type="number" min="0" value={filament.costPerKg}
+                                onChange={(e) => dispatch({ type: 'UPDATE_PLATE_FILAMENT', plateId: plate.id, filamentId: filament.id, field: 'costPerKg', value: e.target.value === '' ? '' : Number(e.target.value) })}
+                                className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 text-left pr-12 font-medium"
+                              />
+                              <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">PHP/kg</span>
+                            </div>
+                          </div>
+
+                          {/* Remove */}
+                          <div className="flex h-[38px] items-center">
+                            {plate.filaments.length > 1 && (
+                              <button
+                                onClick={() => dispatch({ type: 'REMOVE_PLATE_FILAMENT', plateId: plate.id, filamentId: filament.id })}
+                                className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </div>
-
-                        {/* Cost Rate (auto-filled from inventory, still editable) */}
-                        <div>
-                          <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Cost Rate</label>
-                          <div className="relative">
-                            <input
-                              type="number" min="0" value={filament.costPerKg}
-                              onChange={(e) => dispatch({ type: 'UPDATE_PLATE_FILAMENT', plateId: plate.id, filamentId: filament.id, field: 'costPerKg', value: e.target.value === '' ? '' : Number(e.target.value) })}
-                              className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 text-left pr-12 font-medium"
-                            />
-                            <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">PHP/kg</span>
-                          </div>
-                        </div>
-
-                        {/* Remove */}
-                        <div className="flex h-[38px] items-center">
-                          {plate.filaments.length > 1 && (
-                            <button
-                              onClick={() => dispatch({ type: 'REMOVE_PLATE_FILAMENT', plateId: plate.id, filamentId: filament.id })}
-                              className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )})}
+              )
+            })}
           </div>
         </section>
 
@@ -1098,101 +1098,133 @@ export default function AdvancedPriceChecker({ config }) {
       </div>
 
       {/* RIGHT COLUMN: Output Sticky Block */}
-      <div className="w-full lg:w-[360px] lg:sticky top-6">
+      <div className="w-full lg:w-[360px] lg:sticky top-6 space-y-6">
 
         <div className="bg-white border border-zinc-300 shadow-xl shadow-zinc-100 rounded-lg overflow-hidden flex flex-col">
 
           <div className="p-5 border-b border-zinc-200 bg-zinc-50 flex items-center gap-2">
             <Calculator className="w-4 h-4 text-zinc-500" />
-            <h2 className="text-sm font-bold tracking-tight text-zinc-900 uppercase">Financial Summary</h2>
+            <h2 className="text-sm font-bold tracking-tight text-zinc-900 uppercase">Cost Breakdown</h2>
           </div>
 
           <div className="p-6">
             <div className="space-y-3 font-medium text-sm text-zinc-600 border-b border-zinc-100 pb-5">
-
               <div className="flex justify-between items-center group">
-                <span>Material Allocation</span>
+                <span>Materials</span>
                 <span className="text-zinc-900 group-hover:text-black">
-                  {filCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  ₱{filCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
-
               <div className="flex justify-between items-center group">
-                <span>Utility & Infrastructure <span className="text-xs text-zinc-400 font-normal">({totalKWh.toFixed(1)} kWh)</span></span>
+                <span>Utilities</span>
                 <span className="text-zinc-900 group-hover:text-black">
-                  {elecCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  ₱{elecCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
-
-              <div className="flex justify-between items-center group pt-1.5 border-t border-dashed border-zinc-200">
-                <span className="font-semibold text-zinc-800">Material & Utility Combined</span>
-                <span className="font-semibold text-zinc-900 group-hover:text-black">
-                  {(filCost + elecCost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-
-              {wearTearCost > 0 && (
-                <div className="flex justify-between items-center group">
-                  <span>Machine Wear & Tear</span>
-                  <span className="text-zinc-900 group-hover:text-black">
-                    {wearTearCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-              )}
-
-              {failureBufferCost > 0 && (
-                <div className="flex justify-between items-center group pt-1">
-                  <span className="italic">Ops Waste Buffer <span className="text-xs text-zinc-400 font-normal">({config?.failureRatePercent || 10}%)</span></span>
-                  <span className="text-zinc-900 group-hover:text-black italic">
-                    +{failureBufferCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-              )}
-
-              <div className="flex justify-between items-center group pt-2 border-t border-zinc-100 mt-2">
-                <span>Direct Labor</span>
-                <span className="text-zinc-900 group-hover:text-black">
-                  {laborCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-
-              {state.materials.length > 0 && (
+              {matCost > 0 && (
                 <div className="flex justify-between items-center group">
                   <span>Supplementary</span>
                   <span className="text-zinc-900 group-hover:text-black">
-                    {matCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    ₱{matCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
               )}
-
-              {(parseFloat(state.packagingCost) > 0 || parseFloat(state.shippingCost) > 0 || parseFloat(state.miscellaneousCost) > 0) && (
-                <div className="flex justify-between items-center group pt-2 border-t border-zinc-100 mt-2">
-                  <span>Logistics & Overheads</span>
+              {laborCost > 0 && (
+                <div className="flex justify-between items-center group">
+                  <span>Labor</span>
                   <span className="text-zinc-900 group-hover:text-black">
-                    {logisticsCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-              )}
-
-              {markupCost > 0 && (
-                <div className="flex justify-between items-center group pt-2 border-t border-zinc-100 mt-2">
-                  <span className="font-semibold text-emerald-600">Markup Profit <span className="text-xs font-normal">({appliedMarkupPercent}%)</span></span>
-                  <span className="text-emerald-700 font-semibold group-hover:text-emerald-800">
-                    +{markupCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    ₱{laborCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
               )}
             </div>
 
-            <div className="pt-2 flex flex-col items-end">
-              <span className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-1">Total Billable</span>
+            <div className="pt-4 flex flex-col items-end">
+              <span className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-1">TOTAL COST</span>
               <div className="flex items-baseline gap-1">
-                <span className="text-lg font-semibold text-zinc-400">PHP</span>
+                <span className="text-lg font-semibold text-zinc-400">₱</span>
                 <span className="text-4xl font-extrabold text-zinc-900 tracking-tight">
-                  {finalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {displayTotalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Pricing Summary & Allocations Card */}
+        <div className="bg-white border border-zinc-300 shadow-xl shadow-zinc-100 rounded-lg overflow-hidden flex flex-col">
+          <div className="p-5 border-b border-zinc-200 bg-zinc-50 flex items-center gap-2">
+            <Coins className="w-4 h-4 text-zinc-500" />
+            <h2 className="text-sm font-bold tracking-tight text-zinc-900 uppercase">Pricing Summary & Allocations</h2>
+          </div>
+
+          <div className="p-6 space-y-4">
+            <div className="flex justify-between items-center group">
+              <span className="font-semibold text-xs uppercase tracking-wider text-zinc-500">Selling Price</span>
+              <div className="relative w-40">
+                <span className="absolute inset-y-0 left-3 flex items-center text-zinc-400 text-sm font-bold pointer-events-none">₱</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={customFinalPrice}
+                  placeholder={finalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  onChange={(e) => setCustomFinalPrice(e.target.value)}
+                  className="w-full pl-7 pr-3 py-1.5 text-right bg-zinc-50 border border-zinc-200 rounded-md text-sm font-bold text-zinc-950 focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors"
+                />
+              </div>
+            </div>
+            {customFinalPrice !== '' && (
+              <div className="text-right">
+                <button
+                  onClick={() => setCustomFinalPrice('')}
+                  className="text-[10px] text-zinc-400 hover:text-zinc-600 underline font-semibold transition-colors"
+                >
+                  Reset to Suggested (₱{finalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                </button>
+              </div>
+            )}
+
+            <div className="flex justify-between items-center font-medium text-sm text-zinc-600 border-t border-zinc-100 pt-3">
+              <span>Total Cost</span>
+              <span className="text-zinc-900 font-semibold">
+                ₱{displayTotalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+
+            {(() => {
+              const priceVal = customFinalPrice !== '' ? Number(customFinalPrice) : finalPrice;
+              const grossProfitVal = priceVal - displayTotalCost;
+              const machineWearVal = wearTearCost;
+              const wasteReserveVal = failureBufferCost;
+              const netProfitVal = grossProfitVal - machineWearVal - wasteReserveVal;
+
+              return (
+                <div className="space-y-3 pt-3 border-t border-zinc-100 font-medium text-sm text-zinc-600">
+                  <div className="flex justify-between items-center font-bold text-zinc-900">
+                    <span>Gross Profit</span>
+                    <span>₱{grossProfitVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-xs pl-2 text-zinc-500">
+                    <span>Machine Wear</span>
+                    <span>₱{machineWearVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-xs pl-2 text-zinc-500">
+                    <span>Waste Reserve</span>
+                    <span>₱{wasteReserveVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center font-bold border-t border-dashed border-zinc-200 pt-3 text-zinc-900">
+                    <span>Net Profit</span>
+                    <span className={netProfitVal >= 0 ? 'text-zinc-900' : 'text-red-600'}>
+                      ₱{netProfitVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           <div className="flex bg-zinc-50 p-4 border-t border-zinc-200 gap-2">
@@ -1202,7 +1234,14 @@ export default function AdvancedPriceChecker({ config }) {
             >
               Commit Pricing
             </button>
-            <button className="w-10 bg-white border border-zinc-300 hover:bg-zinc-50 text-zinc-600 flex items-center justify-center rounded transition-colors shadow-sm">
+            <button
+              onClick={() => {
+                dispatch({ type: 'LOAD_TEMPLATE', template: init(config) });
+                setCustomFinalPrice('');
+              }}
+              className="w-10 bg-white border border-zinc-300 hover:bg-zinc-50 text-zinc-600 flex items-center justify-center rounded transition-colors shadow-sm"
+              title="Reset Calculator"
+            >
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
