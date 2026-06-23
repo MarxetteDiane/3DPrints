@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, Pencil, Check, X, Package, Layers, AlertTriangle, ShoppingCart, Receipt, RotateCcw, Wallet } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import RestockModal from './RestockModal';
 import {
   INVENTORY_FILAMENTS_TABLE,
   INVENTORY_MATERIALS_TABLE,
@@ -121,16 +122,81 @@ const LOW_STOCK_THRESHOLD_QTY = 5;
 
 // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Inline editable row ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 
+function PayerSelect({ value, onChange, className = "w-full text-xs border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900 bg-white" }) {
+  const standardPayers = ['MackyPrint', 'Marxette', 'Iya'];
+  const hasValue = value != null && value !== '';
+  const isCustom = hasValue && !standardPayers.includes(value);
+
+  const [selected, setSelected] = useState(() => {
+    if (!hasValue) return '';
+    return isCustom ? 'Add Payer' : value;
+  });
+  const [customVal, setCustomVal] = useState(() => isCustom ? value : '');
+  const [showCustom, setShowCustom] = useState(isCustom);
+
+  useEffect(() => {
+    const hasVal = value != null && value !== '';
+    const isCust = hasVal && !standardPayers.includes(value);
+    if (!hasVal) {
+      setSelected('');
+      setShowCustom(false);
+    } else if (isCust) {
+      setSelected('Add Payer');
+      setCustomVal(value);
+      setShowCustom(true);
+    } else {
+      setSelected(value);
+      setShowCustom(false);
+    }
+  }, [value]);
+
+  return (
+    <div className="space-y-1 w-full">
+      <select
+        value={selected}
+        onChange={(e) => {
+          const val = e.target.value;
+          setSelected(val);
+          if (val === 'Add Payer') {
+            setShowCustom(true);
+            onChange(customVal);
+          } else {
+            setShowCustom(false);
+            onChange(val);
+          }
+        }}
+        className={className}
+      >
+        <option value="">- select payer -</option>
+        <option value="MackyPrint">MackyPrint</option>
+        <option value="Marxette">Marxette</option>
+        <option value="Iya">Iya</option>
+        <option value="Add Payer">Add Payer</option>
+      </select>
+      
+      {showCustom && (
+        <input
+          type="text"
+          placeholder="Custom payer"
+          value={customVal}
+          onChange={(e) => {
+            setCustomVal(e.target.value);
+            onChange(e.target.value);
+          }}
+          required
+          className={className}
+        />
+      )}
+    </div>
+  );
+}
+
 function FilamentRow({ filament, onUpdate, onDelete, onRestock }) {
   const [editing, setEditing] = useState(() => {
     return !filament.color && filament.weightGrams === 0 && filament.costPerKg === 0;
   });
   const [draft, setDraft] = useState(filament);
   const isInitialCreation = filament.weightGrams === 0 && filament.costPerKg === 0;
-  const [restocking, setRestocking] = useState(false);
-  const [restockGrams, setRestockGrams] = useState('');
-  const [restockCost, setRestockCost] = useState('');
-  const [restockPayer, setRestockPayer] = useState('');
 
   const handleSave = () => {
     if (!draft.color.trim()) {
@@ -156,40 +222,6 @@ function FilamentRow({ filament, onUpdate, onDelete, onRestock }) {
       setDraft(filament);
       setEditing(false);
     }
-  };
-
-  // Weighted average cost calculation
-  const restockGramsNum = parseFloat(restockGrams) || 0;
-  const restockCostNum = parseFloat(restockCost) || 0;
-  const currentValuePHP = (filament.weightGrams / 1000) * filament.costPerKg;
-  const newTotalGrams = filament.weightGrams + restockGramsNum;
-  const newTotalValuePHP = currentValuePHP + restockCostNum;
-  const newAvgCostPerKg = newTotalGrams > 0 ? (newTotalValuePHP / (newTotalGrams / 1000)) : filament.costPerKg;
-
-  const handleRestockConfirm = () => {
-    if (restockGramsNum <= 0) return;
-    const updatedFilament = {
-      ...filament,
-      weightGrams: newTotalGrams,
-      costPerKg: Math.round(newAvgCostPerKg * 100) / 100,
-    };
-    onUpdate(updatedFilament);
-    onRestock?.({
-      date: new Date().toISOString(),
-      filamentId: filament.id,
-      filamentLabel: `${filament.type || filament.name}${filament.color ? ' - ' + filament.color : ''}${filament.brand ? ' (' + filament.brand + ')' : ''}`,
-      gramsAdded: restockGramsNum,
-      purchaseCost: restockCostNum,
-      prevCostPerKg: filament.costPerKg,
-      newCostPerKg: Math.round(newAvgCostPerKg * 100) / 100,
-      prevWeightGrams: filament.weightGrams,
-      newWeightGrams: newTotalGrams,
-      payer: restockPayer,
-    });
-    setRestockGrams('');
-    setRestockCost('');
-    setRestockPayer('');
-    setRestocking(false);
   };
 
   const isLow = filament.weightGrams <= LOW_STOCK_THRESHOLD_GRAMS;
@@ -255,11 +287,10 @@ function FilamentRow({ filament, onUpdate, onDelete, onRestock }) {
               placeholder="Notes"
             />
             {isInitialCreation && (
-              <input
-                className="w-full text-[11px] border border-zinc-300 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+              <PayerSelect
+                className="w-full text-[11px] border border-zinc-300 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-zinc-900 bg-white"
                 value={draft.payer || ''}
-                onChange={e => setDraft(d => ({ ...d, payer: e.target.value }))}
-                placeholder="Payer"
+                onChange={val => setDraft(d => ({ ...d, payer: val }))}
               />
             )}
           </div>
@@ -292,10 +323,10 @@ function FilamentRow({ filament, onUpdate, onDelete, onRestock }) {
         <td className="px-4 py-3 text-xs text-zinc-400 max-w-[140px] truncate">{filament.notes || '-'}</td>
         <td className="px-4 py-3">
           <div className="flex gap-1">
-            <button onClick={() => { setEditing(true); setRestocking(false); }} className="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded transition-colors" title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
+            <button onClick={() => { setEditing(true); }} className="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded transition-colors" title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
             <button
-              onClick={() => { setRestocking(r => !r); setEditing(false); }}
-              className={`p-1.5 rounded transition-colors ${restocking ? 'text-emerald-600 bg-emerald-50' : 'text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50'}`}
+              onClick={() => { onRestock(filament); setEditing(false); }}
+              className="p-1.5 rounded text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
               title="Restock"
             >
               <ShoppingCart className="w-3.5 h-3.5" />
@@ -304,78 +335,6 @@ function FilamentRow({ filament, onUpdate, onDelete, onRestock }) {
           </div>
         </td>
       </tr>
-
-      {/* Restock inline panel */}
-      {restocking && (
-        <tr className="bg-emerald-50/60 border-b border-emerald-100">
-          <td colSpan={7} className="px-4 py-3">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="text-xs font-bold uppercase tracking-widest text-emerald-700 flex items-center gap-1.5 mr-1">
-                <ShoppingCart className="w-3.5 h-3.5" /> Restock - {filament.type || filament.name}
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Grams to Add</label>
-                <div className="relative">
-                  <input
-                    type="number" min="1" placeholder="0"
-                    value={restockGrams}
-                    onChange={e => setRestockGrams(e.target.value)}
-                    className="w-28 text-sm border border-zinc-300 rounded px-2 py-1 pr-6 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
-                  />
-                  <span className="absolute inset-y-0 right-2 flex items-center text-zinc-400 text-xs pointer-events-none">g</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Purchase Cost</label>
-                <div className="relative">
-                  <input
-                    type="number" min="0" placeholder="0.00"
-                    value={restockCost}
-                    onChange={e => setRestockCost(e.target.value)}
-                    className="w-32 text-sm border border-zinc-300 rounded px-2 py-1 pr-10 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
-                  />
-                  <span className="absolute inset-y-0 right-2 flex items-center text-zinc-400 text-xs pointer-events-none">PHP</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Payer</label>
-                <input
-                  type="text" placeholder="Who paid?"
-                  value={restockPayer}
-                  onChange={e => setRestockPayer(e.target.value)}
-                  className="w-32 text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
-                />
-              </div>
-
-              {restockGramsNum > 0 && (
-                <div className="text-xs text-zinc-500 bg-white border border-zinc-200 rounded px-3 py-1.5 space-y-0.5">
-                  <div>New stock: <strong className="text-zinc-800">{newTotalGrams.toLocaleString()}g</strong></div>
-                  <div>Avg cost: <strong className="text-emerald-700">PHP {newAvgCostPerKg.toFixed(2)}/kg</strong></div>
-                </div>
-              )}
-
-              <div className="flex gap-1.5 ml-auto">
-                <button
-                  onClick={handleRestockConfirm}
-                  disabled={restockGramsNum <= 0}
-                  className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded transition-colors disabled:opacity-40 flex items-center gap-1"
-                >
-                  <Check className="w-3.5 h-3.5" /> Confirm
-                </button>
-                <button
-                  onClick={() => { setRestocking(false); setRestockGrams(''); setRestockCost(''); }}
-                  className="text-xs font-semibold bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-600 px-3 py-1.5 rounded transition-colors flex items-center gap-1"
-                >
-                  <X className="w-3.5 h-3.5" /> Cancel
-                </button>
-              </div>
-            </div>
-          </td>
-        </tr>
-      )}
     </>
   );
 }
@@ -386,10 +345,6 @@ function MaterialRow({ material, onUpdate, onDelete, onRestock }) {
   });
   const [draft, setDraft] = useState(() => normalizeMaterial(material));
   const isInitialCreation = Number(material.costPerUnit || 0) === 0;
-  const [restocking, setRestocking] = useState(false);
-  const [restockQty, setRestockQty] = useState('');
-  const [restockCost, setRestockCost] = useState('');
-  const [restockPayer, setRestockPayer] = useState('');
 
   useEffect(() => {
     setDraft(normalizeMaterial(material));
@@ -426,44 +381,7 @@ function MaterialRow({ material, onUpdate, onDelete, onRestock }) {
   };
 
   const normalizedMaterial = normalizeMaterial(material);
-  const restockQtyNum = parseFloat(restockQty) || 0;
-  const restockCostNum = parseFloat(restockCost) || 0;
-  const currentBulkPrice = getMaterialBulkPrice(normalizedMaterial);
-  const currentUnitPrice = getMaterialUnitPrice(normalizedMaterial);
-  const newTotalQty = normalizedMaterial.quantity + restockQtyNum;
-  const newTotalBulkPrice = currentBulkPrice + restockCostNum;
-  const newAvgCostPerUnit = newTotalQty > 0 ? (newTotalBulkPrice / newTotalQty) : currentUnitPrice;
   const isLow = normalizedMaterial.quantity <= LOW_STOCK_THRESHOLD_QTY;
-
-  const handleRestockConfirm = () => {
-    if (restockQtyNum <= 0) return;
-    const roundedCostPerUnit = roundCurrency(newAvgCostPerUnit);
-    onUpdate({
-      ...normalizedMaterial,
-      quantity: newTotalQty,
-      bulkPrice: roundCurrency(newTotalBulkPrice),
-      costPerUnit: roundedCostPerUnit,
-    });
-    onRestock?.({
-      date: new Date().toISOString(),
-      itemType: 'material',
-      itemId: normalizedMaterial.id,
-      itemLabel: normalizedMaterial.name,
-      itemCategory: normalizedMaterial.category,
-      unitLabel: normalizedMaterial.unit,
-      quantityAdded: restockQtyNum,
-      purchaseCost: restockCostNum,
-      prevCostPerUnit: currentUnitPrice,
-      newCostPerUnit: roundedCostPerUnit,
-      prevQuantity: normalizedMaterial.quantity,
-      newQuantity: newTotalQty,
-      payer: restockPayer,
-    });
-    setRestockQty('');
-    setRestockCost('');
-    setRestockPayer('');
-    setRestocking(false);
-  };
 
   if (editing) {
     return (
@@ -558,11 +476,10 @@ function MaterialRow({ material, onUpdate, onDelete, onRestock }) {
           <div className="flex flex-col gap-1">
             <input className="w-full text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900" value={draft.notes} onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))} placeholder="Notes" />
             {isInitialCreation && (
-              <input
-                className="w-full text-[11px] border border-zinc-300 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+              <PayerSelect
+                className="w-full text-[11px] border border-zinc-300 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-zinc-900 bg-white"
                 value={draft.payer || ''}
-                onChange={e => setDraft(d => ({ ...d, payer: e.target.value }))}
-                placeholder="Payer"
+                onChange={val => setDraft(d => ({ ...d, payer: val }))}
               />
             )}
           </div>
@@ -594,61 +511,12 @@ function MaterialRow({ material, onUpdate, onDelete, onRestock }) {
         <td className="px-4 py-3 text-xs text-zinc-400 max-w-[140px] truncate">{normalizedMaterial.notes || '-'}</td>
         <td className="px-4 py-3">
           <div className="flex gap-1">
-            <button onClick={() => { setEditing(true); setRestocking(false); }} className="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
-            <button onClick={() => { setRestocking(r => !r); setEditing(false); }} className={`p-1.5 rounded transition-colors ${restocking ? 'text-emerald-600 bg-emerald-50' : 'text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50'}`} title="Restock"><ShoppingCart className="w-3.5 h-3.5" /></button>
+            <button onClick={() => { setEditing(true); }} className="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
+            <button onClick={() => { onRestock(material); setEditing(false); }} className="p-1.5 rounded text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors" title="Restock"><ShoppingCart className="w-3.5 h-3.5" /></button>
             <button onClick={() => onDelete(normalizedMaterial.id)} className="p-1.5 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
           </div>
         </td>
       </tr>
-
-      {restocking && (
-        <tr className="bg-emerald-50/60 border-b border-emerald-100">
-          <td colSpan={7} className="px-4 py-3">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="text-xs font-bold uppercase tracking-widest text-emerald-700 flex items-center gap-1.5 mr-1"><ShoppingCart className="w-3.5 h-3.5" /> Restock - {normalizedMaterial.name}</div>
-
-              <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Quantity to Add</label>
-                <div className="relative">
-                  <input type="number" min="1" placeholder="0" value={restockQty} onChange={e => setRestockQty(e.target.value)} className="w-28 text-sm border border-zinc-300 rounded px-2 py-1 pr-10 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white" />
-                  <span className="absolute inset-y-0 right-2 flex items-center text-zinc-400 text-xs pointer-events-none">{normalizedMaterial.unit}</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Bulk Price</label>
-                <div className="relative">
-                  <input type="number" min="0" placeholder="0.00" value={restockCost} onChange={e => setRestockCost(e.target.value)} className="w-32 text-sm border border-zinc-300 rounded px-2 py-1 pr-10 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white" />
-                  <span className="absolute inset-y-0 right-2 flex items-center text-zinc-400 text-xs pointer-events-none">PHP</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Payer</label>
-                <input
-                  type="text" placeholder="Who paid?"
-                  value={restockPayer}
-                  onChange={e => setRestockPayer(e.target.value)}
-                  className="w-32 text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
-                />
-              </div>
-
-              {restockQtyNum > 0 && (
-                <div className="text-xs text-zinc-500 bg-white border border-zinc-200 rounded px-3 py-1.5 space-y-0.5">
-                  <div>New stock: <strong className="text-zinc-800">{newTotalQty.toLocaleString()} {normalizedMaterial.unit}</strong></div>
-                  <div>Bulk value: <strong className="text-zinc-800">PHP {roundCurrency(newTotalBulkPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></div>
-                  <div>Unit price: <strong className="text-emerald-700">PHP {newAvgCostPerUnit.toFixed(2)}/{normalizedMaterial.unit}</strong></div>
-                </div>
-              )}
-
-              <div className="flex gap-1.5 ml-auto">
-                <button onClick={handleRestockConfirm} disabled={restockQtyNum <= 0} className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded transition-colors disabled:opacity-40 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Confirm</button>
-                <button onClick={() => { setRestocking(false); setRestockQty(''); setRestockCost(''); }} className="text-xs font-semibold bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-600 px-3 py-1.5 rounded transition-colors flex items-center gap-1"><X className="w-3.5 h-3.5" /> Cancel</button>
-              </div>
-            </div>
-          </td>
-        </tr>
-      )}
     </>
   );
 }
@@ -739,11 +607,10 @@ function ExpenseRow({ expense, onUpdate, onDelete }) {
           </div>
         </td>
         <td className="px-4 py-2">
-          <input
-            className="w-full text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+          <PayerSelect
+            className="w-full text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900 bg-white"
             value={draft.payer}
-            onChange={e => setDraft(d => ({ ...d, payer: e.target.value }))}
-            placeholder="Payer"
+            onChange={val => setDraft(d => ({ ...d, payer: val }))}
           />
         </td>
         <td className="px-4 py-2">
@@ -833,11 +700,6 @@ function SpoolCard({ filament, onUpdate, onDelete, onRestock }) {
     return !filament.color && filament.weightGrams === 0 && filament.costPerKg === 0;
   });
   const [draft, setDraft] = useState(filament);
-  const isInitialCreation = filament.weightGrams === 0 && filament.costPerKg === 0;
-  const [restocking, setRestocking] = useState(false);
-  const [restockGrams, setRestockGrams] = useState('');
-  const [restockCost, setRestockCost] = useState('');
-  const [restockPayer, setRestockPayer] = useState('');
 
   const isLow = filament.weightGrams <= LOW_STOCK_THRESHOLD_GRAMS;
   const percent = Math.min(100, Math.max(0, (filament.weightGrams / 1000) * 100));
@@ -867,39 +729,6 @@ function SpoolCard({ filament, onUpdate, onDelete, onRestock }) {
       setDraft(filament);
       setEditing(false);
     }
-  };
-
-  const restockGramsNum = parseFloat(restockGrams) || 0;
-  const restockCostNum = parseFloat(restockCost) || 0;
-  const currentValuePHP = (filament.weightGrams / 1000) * filament.costPerKg;
-  const newTotalGrams = filament.weightGrams + restockGramsNum;
-  const newTotalValuePHP = currentValuePHP + restockCostNum;
-  const newAvgCostPerKg = newTotalGrams > 0 ? (newTotalValuePHP / (newTotalGrams / 1000)) : filament.costPerKg;
-
-  const handleRestockConfirm = () => {
-    if (restockGramsNum <= 0) return;
-    const updatedFilament = {
-      ...filament,
-      weightGrams: newTotalGrams,
-      costPerKg: Math.round(newAvgCostPerKg * 100) / 100,
-    };
-    onUpdate(updatedFilament);
-    onRestock?.({
-      date: new Date().toISOString(),
-      filamentId: filament.id,
-      filamentLabel: `${filament.type || filament.name}${filament.color ? ' - ' + filament.color : ''}${filament.brand ? ' (' + filament.brand + ')' : ''}`,
-      gramsAdded: restockGramsNum,
-      purchaseCost: restockCostNum,
-      prevCostPerKg: filament.costPerKg,
-      newCostPerKg: Math.round(newAvgCostPerKg * 100) / 100,
-      prevWeightGrams: filament.weightGrams,
-      newWeightGrams: newTotalGrams,
-      payer: restockPayer,
-    });
-    setRestockGrams('');
-    setRestockCost('');
-    setRestockPayer('');
-    setRestocking(false);
   };
 
   if (editing) {
@@ -968,11 +797,10 @@ function SpoolCard({ filament, onUpdate, onDelete, onRestock }) {
           {isInitialCreation && (
             <div>
               <label className="block text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-0.5">Payer</label>
-              <input
-                className="w-full text-xs border border-zinc-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-zinc-900"
+              <PayerSelect
+                className="w-full text-xs border border-zinc-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-zinc-900 bg-white"
                 value={draft.payer || ''}
-                onChange={e => setDraft(d => ({ ...d, payer: e.target.value }))}
-                placeholder="Payer"
+                onChange={val => setDraft(d => ({ ...d, payer: val }))}
               />
             </div>
           )}
@@ -1052,94 +880,32 @@ function SpoolCard({ filament, onUpdate, onDelete, onRestock }) {
           <span className="text-zinc-950 font-bold">PHP {filament.costPerKg.toLocaleString()}/kg</span>
         </div>
 
-        {restocking ? (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 space-y-2.5 mt-2 animate-in zoom-in-95 duration-150">
-            <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-800 flex items-center gap-1">
-              <ShoppingCart className="w-3 h-3" /> Quick Restock
-            </div>
-
-            <div className="grid grid-cols-2 gap-1.5">
-              <div>
-                <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-0.5">Grams</label>
-                <input
-                  type="number" min="1" placeholder="grams"
-                  value={restockGrams}
-                  onChange={e => setRestockGrams(e.target.value)}
-                  className="w-full text-xs border border-zinc-200 rounded px-1.5 py-1 bg-white font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
-              </div>
-              <div>
-                <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-0.5">Cost</label>
-                <input
-                  type="number" min="0" placeholder="PHP"
-                  value={restockCost}
-                  onChange={e => setRestockCost(e.target.value)}
-                  className="w-full text-xs border border-zinc-200 rounded px-1.5 py-1 bg-white font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-0.5">Payer</label>
-              <input
-                type="text" placeholder="Who paid?"
-                value={restockPayer}
-                onChange={e => setRestockPayer(e.target.value)}
-                className="w-full text-xs border border-zinc-200 rounded px-1.5 py-1 bg-white font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500"
-              />
-            </div>
-
-            {restockGramsNum > 0 && (
-              <div className="text-[9px] text-zinc-500 bg-white border border-zinc-100 rounded p-1.5 font-medium leading-tight space-y-0.5">
-                <div>New stock: <strong className="text-zinc-800">{newTotalGrams.toLocaleString()}g</strong></div>
-                <div>Avg cost: <strong className="text-emerald-700">PHP {newAvgCostPerKg.toFixed(2)}/kg</strong></div>
-              </div>
-            )}
-
-            <div className="flex gap-1.5">
-              <button
-                onClick={handleRestockConfirm}
-                disabled={restockGramsNum <= 0}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-1 rounded transition-colors disabled:opacity-40"
-              >
-                Confirm
-              </button>
-              <button
-                onClick={() => { setRestocking(false); setRestockGrams(''); setRestockCost(''); }}
-                className="flex-1 bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-600 text-[10px] font-bold py-1 rounded transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => { setRestocking(true); setEditing(false); }}
-              className="flex-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-bold py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 shadow-sm"
-            >
-              <ShoppingCart className="w-3.5 h-3.5" /> Restock
-            </button>
-            <button
-              onClick={() => { setEditing(true); setRestocking(false); }}
-              className="bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-zinc-600 hover:text-zinc-950 p-1.5 rounded-md transition-colors flex items-center justify-center"
-              title="Edit Spool"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => {
-                if (window.confirm("Permanently delete this spool?")) {
-                  onDelete(filament.id);
-                }
-              }}
-              className="bg-zinc-50 hover:bg-red-50 border border-zinc-200 text-zinc-300 hover:text-red-500 p-1.5 rounded-md transition-colors flex items-center justify-center"
-              title="Delete Spool"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
+        <div className="flex gap-1.5">
+          <button
+            onClick={() => { onRestock(filament); setEditing(false); }}
+            className="flex-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-bold py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 shadow-sm"
+          >
+            <ShoppingCart className="w-3.5 h-3.5" /> Restock
+          </button>
+          <button
+            onClick={() => { setEditing(true); }}
+            className="bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-zinc-600 hover:text-zinc-950 p-1.5 rounded-md transition-colors flex items-center justify-center"
+            title="Edit Spool"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => {
+              if (window.confirm("Permanently delete this spool?")) {
+                onDelete(filament.id);
+              }
+            }}
+            className="bg-zinc-50 hover:bg-red-50 border border-zinc-200 text-zinc-300 hover:text-red-500 p-1.5 rounded-md transition-colors flex items-center justify-center"
+            title="Delete Spool"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
     </div>
@@ -1156,6 +922,7 @@ export default function InventoryView() {
   const [expensesLoading, setExpensesLoading] = useState(true);
   const [activeSection, setActiveSection] = useState('filaments');
   const [filamentViewMode, setFilamentViewMode] = useState('shelf'); // Default to shelf grid
+  const [restockItem, setRestockItem] = useState(null);
 
   useEffect(() => {
     syncInventoryCache({ filaments, materials });
@@ -1909,7 +1676,7 @@ export default function InventoryView() {
           ) : filamentViewMode === 'shelf' ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 p-6 bg-zinc-50 border-b border-zinc-100">
               {filaments.map(f => (
-                <SpoolCard key={f.id} filament={f} onUpdate={updateFilament} onDelete={deleteFilament} onRestock={addToHistory} />
+                <SpoolCard key={f.id} filament={f} onUpdate={updateFilament} onDelete={deleteFilament} onRestock={() => setRestockItem({ item: f, type: 'filament' })} />
               ))}
             </div>
           ) : (
@@ -1928,7 +1695,7 @@ export default function InventoryView() {
                 </thead>
                 <tbody>
                   {filaments.map(f => (
-                    <FilamentRow key={f.id} filament={f} onUpdate={updateFilament} onDelete={deleteFilament} onRestock={addToHistory} />
+                    <FilamentRow key={f.id} filament={f} onUpdate={updateFilament} onDelete={deleteFilament} onRestock={() => setRestockItem({ item: f, type: 'filament' })} />
                   ))}
                 </tbody>
               </table>
@@ -1988,7 +1755,7 @@ export default function InventoryView() {
                 </thead>
                 <tbody>
                   {materials.map(m => (
-                    <MaterialRow key={m.id} material={m} onUpdate={updateMaterial} onDelete={deleteMaterial} onRestock={addToHistory} />
+                    <MaterialRow key={m.id} material={m} onUpdate={updateMaterial} onDelete={deleteMaterial} onRestock={() => setRestockItem({ item: m, type: 'material' })} />
                   ))}
                 </tbody>
               </table>
@@ -2200,6 +1967,16 @@ export default function InventoryView() {
             </span>
           </div>
         </section>
+      )}
+
+      {restockItem && (
+        <RestockModal
+          item={restockItem.item}
+          type={restockItem.type}
+          onClose={() => setRestockItem(null)}
+          onUpdate={restockItem.type === 'filament' ? updateFilament : updateMaterial}
+          onRestock={addToHistory}
+        />
       )}
 
     </div>

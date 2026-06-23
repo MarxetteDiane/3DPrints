@@ -520,7 +520,10 @@ function ReportFailureModal({ orderId, onClose }) {
   const [selectedFilamentId, setSelectedFilamentId] = useState('');
   const [wastedGrams, setWastedGrams] = useState('');
   const [reason, setReason] = useState('Bed Adhesion Failure');
-  const [payer, setPayer] = useState('Administrator');
+  const [payer, setPayer] = useState('MackyPrint');
+  const [selectedPayer, setSelectedPayer] = useState('MackyPrint');
+  const [customPayer, setCustomPayer] = useState('');
+  const [showCustomPayer, setShowCustomPayer] = useState(false);
   const [loading, setLoading] = useState(false);
   const [orderName, setOrderName] = useState('Active Print Job');
 
@@ -696,13 +699,44 @@ function ReportFailureModal({ orderId, onClose }) {
             </div>
             <div>
               <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Payer Account</label>
-              <input
-                type="text"
-                value={payer}
-                onChange={e => setPayer(e.target.value)}
+              <select
+                value={selectedPayer}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedPayer(val);
+                  if (val === 'Add Payer') {
+                    setShowCustomPayer(true);
+                    setPayer(customPayer);
+                  } else {
+                    setShowCustomPayer(false);
+                    setPayer(val);
+                  }
+                }}
                 required
                 className="w-full text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-zinc-50 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900"
-              />
+              >
+                <option value="">— select payer —</option>
+                <option value="MackyPrint">MackyPrint</option>
+                <option value="Marxette">Marxette</option>
+                <option value="Iya">Iya</option>
+                <option value="Add Payer">Add Payer</option>
+              </select>
+
+              {showCustomPayer && (
+                <div className="mt-2 animate-in slide-in-from-top-1 duration-150">
+                  <input
+                    type="text"
+                    placeholder="Enter custom payer name"
+                    value={customPayer}
+                    onChange={(e) => {
+                      setCustomPayer(e.target.value);
+                      setPayer(e.target.value);
+                    }}
+                    required
+                    className="w-full text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-zinc-50 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                  />
+                </div>
+              )}
             </div>
           </div>
 
