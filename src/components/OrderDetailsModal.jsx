@@ -46,7 +46,7 @@ function makeId(prefix) {
 
 function getStoredConfig() {
   try {
-    const raw = localStorage.getItem('nexusPrintConfig');
+    const raw = localStorage.getItem('mackyPrintConfig');
     return raw ? { ...DEFAULT_CONFIG, ...JSON.parse(raw) } : DEFAULT_CONFIG;
   } catch {
     return DEFAULT_CONFIG;
@@ -625,7 +625,7 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
         .from('orders')
         .update({ status: 'Cancelled' })
         .eq('id', orderId);
-        
+
       if (error) throw error;
     },
     onSuccess: async () => {
@@ -1676,7 +1676,7 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                       <div className="flex justify-between items-center"><span><span>Utilities</span></span><span className="text-zinc-900">₱{formatMoney(data.financial_breakdown.electricityCost)}</span></div>
                       {Number(data.financial_breakdown.supplementaryMatCost || 0) > 0 && <div className="flex justify-between items-center"><span><span>Supplementary</span></span><span className="text-zinc-900">₱{formatMoney(data.financial_breakdown.supplementaryMatCost)}</span></div>}
                       {Number(data.financial_breakdown.laborCost || 0) > 0 && <div className="flex justify-between items-center"><span><span>Labor</span></span><span className="text-zinc-900">₱{formatMoney(data.financial_breakdown.laborCost)}</span></div>}
-                      
+
                       <div className="flex flex-col items-end pt-5 border-t border-zinc-200 mt-auto">
                         <span className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-1">TOTAL COST</span>
                         <div className="flex items-baseline gap-1">
@@ -1704,7 +1704,7 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                     </div>
                     <div className="p-5 flex flex-col gap-3 text-sm text-zinc-600 flex-1">
                       {(() => {
-                        const totalCost = 
+                        const totalCost =
                           Number(data.financial_breakdown.filamentCost || 0) +
                           Number(data.financial_breakdown.electricityCost || 0) +
                           Number(data.financial_breakdown.supplementaryMatCost || 0) +
@@ -1813,9 +1813,9 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
         </div>
       </div>
       {isSettlingPayment && (
-        <SettlePaymentModal 
-          orderId={orderId} 
-          onClose={() => setIsSettlingPayment(false)} 
+        <SettlePaymentModal
+          orderId={orderId}
+          onClose={() => setIsSettlingPayment(false)}
         />
       )}
     </div>

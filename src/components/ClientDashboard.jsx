@@ -61,20 +61,20 @@ function mapConfigStateToRow(config) {
 }
 
 export default function ClientDashboard() {
-  const [selectedClient, setSelectedClient] = useState('John Doe Studios');
+  const [selectedClient, setSelectedClient] = useState('MackyPrint');
   const [selectedOrder, setSelectedOrder] = useState('ORD-2024-089');
   const [activeTab, setActiveTab] = useState('Calculator');
   const [configLoading, setConfigLoading] = useState(true);
   const [configSaving, setConfigSaving] = useState(false);
-  
+
   const [systemConfig, setSystemConfig] = useState(() => {
-    const saved = localStorage.getItem('nexusPrintConfig');
+    const saved = localStorage.getItem('mackyPrintConfig');
     if (saved) return { ...DEFAULT_SYSTEM_CONFIG, ...JSON.parse(saved) };
     return DEFAULT_SYSTEM_CONFIG;
   });
 
   useEffect(() => {
-    localStorage.setItem('nexusPrintConfig', JSON.stringify(systemConfig));
+    localStorage.setItem('mackyPrintConfig', JSON.stringify(systemConfig));
   }, [systemConfig]);
 
   useEffect(() => {
@@ -104,7 +104,7 @@ export default function ClientDashboard() {
       }
 
       const fallbackConfig = (() => {
-        const saved = localStorage.getItem('nexusPrintConfig');
+        const saved = localStorage.getItem('mackyPrintConfig');
         return saved ? { ...DEFAULT_SYSTEM_CONFIG, ...JSON.parse(saved) } : DEFAULT_SYSTEM_CONFIG;
       })();
 
@@ -152,36 +152,36 @@ export default function ClientDashboard() {
     setSystemConfig(mapConfigRowToState(data));
   };
 
-  const clients = ['John Doe Studios', 'Acme Props', 'NerdGear Inc'];
+  const clients = ['MackyPrint', 'Acme Props', 'NerdGear Inc'];
   const orders = ['ORD-2024-089', 'ORD-2024-092', 'New Order'];
 
   return (
     <div className="flex bg-zinc-100 min-h-screen font-sans selection:bg-zinc-200">
-      
+
       {/* Sidebar: hidden on mobile, visible on sm+ */}
       <aside className="hidden sm:flex w-[68px] sm:w-[260px] bg-white border-r border-zinc-200 flex-col transition-all h-screen shrink-0 relative z-20">
         <div className="h-14 border-b border-zinc-200 flex items-center px-4 shrink-0 overflow-hidden">
           <Factory className="w-6 h-6 text-zinc-900 shrink-0" />
-          <span className="ml-3 font-bold tracking-tight text-zinc-900 whitespace-nowrap hidden sm:block font-mono text-sm uppercase">NexusPrint</span>
+          <span className="ml-3 font-bold tracking-tight text-zinc-900 whitespace-nowrap hidden sm:block font-mono text-sm uppercase">MackyPrint</span>
         </div>
-        
+
         <nav className="flex-1 py-4 space-y-1 px-3">
-          <button 
+          <button
             onClick={() => setActiveTab('Dashboard')}
             className={`w-full flex items-center px-2 sm:px-3 py-2 rounded transition-colors group ${activeTab === 'Dashboard' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'}`}
           >
             <Box className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
             <span className="ml-3 font-medium text-sm hidden sm:block">Dashboard</span>
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('Calculator')}
             className={`w-full flex items-center px-2 sm:px-3 py-2 rounded transition-colors group ${activeTab === 'Calculator' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'}`}
           >
             <Calculator className="w-4 h-4 shrink-0" />
             <span className="ml-3 font-medium text-sm hidden sm:block">Pricing Calculator</span>
           </button>
-          
-          <button 
+
+          <button
             onClick={() => setActiveTab('Archives')}
             className={`w-full flex items-center px-2 sm:px-3 py-2 rounded transition-colors group ${activeTab === 'Archives' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'}`}
           >
@@ -189,7 +189,7 @@ export default function ClientDashboard() {
             <span className="ml-3 font-medium text-sm hidden sm:block">Completed Archives</span>
           </button>
 
-          <button 
+          <button
             onClick={() => setActiveTab('Gallery')}
             className={`w-full flex items-center px-2 sm:px-3 py-2 rounded transition-colors group ${activeTab === 'Gallery' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'}`}
           >
@@ -197,7 +197,7 @@ export default function ClientDashboard() {
             <span className="ml-3 font-medium text-sm hidden sm:block">Recipe Gallery</span>
           </button>
 
-          <button 
+          <button
             onClick={() => setActiveTab('Inventory')}
             className={`w-full flex items-center px-2 sm:px-3 py-2 rounded transition-colors group ${activeTab === 'Inventory' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'}`}
           >
@@ -205,7 +205,7 @@ export default function ClientDashboard() {
             <span className="ml-3 font-medium text-sm hidden sm:block">Inventory</span>
           </button>
 
-          <button 
+          <button
             onClick={() => setActiveTab('Financials')}
             className={`w-full flex items-center px-2 sm:px-3 py-2 rounded transition-colors group ${activeTab === 'Financials' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'}`}
           >
@@ -213,7 +213,7 @@ export default function ClientDashboard() {
             <span className="ml-3 font-medium text-sm hidden sm:block">Financial Report</span>
           </button>
 
-          <button 
+          <button
             onClick={() => setActiveTab('Configurations')}
             className={`w-full flex items-center px-2 sm:px-3 py-2 rounded transition-colors group ${activeTab === 'Configurations' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'}`}
           >
@@ -240,10 +240,10 @@ export default function ClientDashboard() {
 
       {/* Main Content Pane */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative pb-16 sm:pb-0">
-        
+
         {/* Header - Workspace / Directory Navigation */}
         <header className="h-14 bg-white border-b border-zinc-200 flex items-center px-4 sm:px-6 justify-between shrink-0">
-          
+
           <div className="flex items-center text-xs font-medium text-zinc-500 uppercase tracking-widest gap-2">
             <div className="relative group/client">
               <button className="hover:text-zinc-900 transition-colors decoration-zinc-300 underline-offset-4 hover:underline">
@@ -257,7 +257,7 @@ export default function ClientDashboard() {
                   </div>
                 </div>
                 {clients.map(c => (
-                  <button 
+                  <button
                     key={c} onClick={() => setSelectedClient(c)}
                     className={`w-full text-left px-3 py-2 normal-case tracking-normal hover:bg-zinc-50 transition-colors ${selectedClient === c ? 'text-zinc-900 font-semibold' : 'text-zinc-600'}`}
                   >
@@ -266,16 +266,16 @@ export default function ClientDashboard() {
                 ))}
               </div>
             </div>
-            
+
             <ChevronRight className="w-3 h-3 text-zinc-300" />
-            
+
             <div className="relative group/order">
               <button className="text-zinc-900 font-bold hover:underline decoration-zinc-900 underline-offset-4">
                 {selectedOrder}
               </button>
               <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-zinc-200 rounded shadow-xl opacity-0 invisible group-hover/order:opacity-100 group-hover/order:visible transition-all z-30 py-1">
                 {orders.map(o => (
-                  <button 
+                  <button
                     key={o} onClick={() => setSelectedOrder(o)}
                     className={`w-full text-left px-3 py-2 normal-case tracking-normal hover:bg-zinc-50 transition-colors ${selectedOrder === o ? 'text-zinc-900 font-semibold' : 'text-zinc-600'}`}
                   >
@@ -285,7 +285,7 @@ export default function ClientDashboard() {
               </div>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-4">
             <span className="text-xs font-semibold text-zinc-500 uppercase tracking-widest hidden sm:block">Administrator</span>
             <div className="w-7 h-7 bg-zinc-900 text-white rounded flex items-center justify-center text-xs font-bold font-mono">
@@ -309,25 +309,25 @@ export default function ClientDashboard() {
             )}
 
             {activeTab === 'Dashboard' && <MetricsView />}
-            
+
             {activeTab === 'Archives' && <CompletedOrdersView />}
 
             {activeTab === 'Gallery' && (
-              <ProductGalleryView 
+              <ProductGalleryView
                 config={systemConfig}
                 onLoadTemplate={(template) => {
                   setActiveTab('Calculator');
                   setTimeout(() => {
                     window.dispatchEvent(new CustomEvent('load-calculator-template', { detail: template }));
                   }, 100);
-                }} 
+                }}
               />
             )}
 
             {activeTab === 'Inventory' && <InventoryView />}
-            
+
             {activeTab === 'Financials' && <FinancialReportView />}
-            
+
             {activeTab === 'Configurations' && (
               <ConfigurationsView
                 config={systemConfig}
@@ -348,14 +348,14 @@ export default function ClientDashboard() {
 function Calculator(props) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16.01" y1="10" y2="10"/><line x1="12" x2="12.01" y1="10" y2="10"/><line x1="8" x2="8.01" y1="10" y2="10"/><line x1="16" x2="16.01" y1="14" y2="14"/><line x1="12" x2="12.01" y1="14" y2="14"/><line x1="8" x2="8.01" y1="14" y2="14"/><line x1="16" x2="16.01" y1="18" y2="18"/><line x1="12" x2="12.01" y1="18" y2="18"/><line x1="8" x2="8.01" y1="18" y2="18"/>
+      <rect width="16" height="20" x="4" y="2" rx="2" /><line x1="8" x2="16" y1="6" y2="6" /><line x1="16" x2="16.01" y1="10" y2="10" /><line x1="12" x2="12.01" y1="10" y2="10" /><line x1="8" x2="8.01" y1="10" y2="10" /><line x1="16" x2="16.01" y1="14" y2="14" /><line x1="12" x2="12.01" y1="14" y2="14" /><line x1="8" x2="8.01" y1="14" y2="14" /><line x1="16" x2="16.01" y1="18" y2="18" /><line x1="12" x2="12.01" y1="18" y2="18" /><line x1="8" x2="8.01" y1="18" y2="18" />
     </svg>
   );
 }
 
 function MobileTabButton({ active, onClick, icon: Icon, label }) {
   return (
-    <button 
+    <button
       onClick={onClick}
       className={`flex flex-col items-center justify-center gap-1 transition-all ${active ? 'text-zinc-900' : 'text-zinc-400'}`}
     >
