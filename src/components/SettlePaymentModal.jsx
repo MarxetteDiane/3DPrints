@@ -5,7 +5,7 @@ import { XCircle, Loader2, Coins, Check } from 'lucide-react';
 
 export default function SettlePaymentModal({ orderId, onClose, onSuccess }) {
   const queryClient = useQueryClient();
-  const [amountPaid, setAmountPaid] = useState('');
+  const [amountReceived, setAmountReceived] = useState('');
   
   const { data: order, isLoading, isError, error } = useQuery({
     queryKey: ['order-payment-details', orderId],
@@ -22,20 +22,30 @@ export default function SettlePaymentModal({ orderId, onClose, onSuccess }) {
   });
 
   useEffect(() => {
-    if (order) {
-      const currentPaid = order.financial_breakdown?.amountPaid !== undefined
-        ? Number(order.financial_breakdown.amountPaid)
-        : (order.status === 'Completed' ? Number(order.total_price || 0) : 0);
-      setAmountPaid(currentPaid.toString());
-    }
+    setAmountReceived('');
   }, [order]);
 
   const updateMutation = useMutation({
-    mutationFn: async (nextAmountPaid) => {
+    mutationFn: async (receivedVal) => {
       const prevBreakdown = order.financial_breakdown || {};
+      const prevPaid = prevBreakdown.amountPaid !== undefined
+        ? Number(prevBreakdown.amountPaid)
+        : (order.status === 'Completed' ? Number(order.total_price || 0) : 0);
+      
+      const nextAmountPaid = prevPaid + receivedVal;
+      
+      let nextHistory = prevBreakdown.paymentHistory || [];
+      if (receivedVal !== 0) {
+        nextHistory = [...nextHistory, {
+          amount: receivedVal,
+          date: new Date().toISOString()
+        }];
+      }
+
       const nextBreakdown = {
         ...prevBreakdown,
         amountPaid: nextAmountPaid,
+        paymentHistory: nextHistory,
         editorState: prevBreakdown.editorState ? {
           ...prevBreakdown.editorState,
           amountPaid: nextAmountPaid
@@ -52,6 +62,7 @@ export default function SettlePaymentModal({ orderId, onClose, onSuccess }) {
       if (error) throw error;
     },
     onSuccess: async () => {
+      setAmountReceived('');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['order-details', orderId] }),
         queryClient.invalidateQueries({ queryKey: ['order-payment-details', orderId] }),
@@ -75,20 +86,28 @@ export default function SettlePaymentModal({ orderId, onClose, onSuccess }) {
   };
 
   const totalAmount = order ? Number(order.total_price || 0) : 0;
-  const parsedPaid = Math.max(0, Number(amountPaid) || 0);
-  const balanceDue = Math.max(0, totalAmount - parsedPaid);
+  const prevPaid = order && order.financial_breakdown?.amountPaid !== undefined
+    ? Number(order.financial_breakdown.amountPaid)
+    : (order?.status === 'Completed' ? totalAmount : 0);
+  const balanceDue = Math.max(0, totalAmount - prevPaid);
+  const parsedReceived = Math.max(0, Number(amountReceived) || 0);
+  const remainingBalance = Math.max(0, balanceDue - parsedReceived);
 
   const handlePayInFull = () => {
-    setAmountPaid(totalAmount.toString());
+    setAmountReceived(balanceDue.toString());
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (parsedPaid < 0) {
-      alert("Amount Paid cannot be negative.");
+    if (parsedReceived < 0) {
+      alert("Amount Received cannot be negative.");
       return;
     }
-    updateMutation.mutate(parsedPaid);
+    if (parsedReceived === 0) {
+      alert("Please enter an amount received greater than 0.");
+      return;
+    }
+    updateMutation.mutate(parsedReceived);
   };
 
   const clientName = order?.clients?.name || 'Unknown Client';
@@ -134,29 +153,37 @@ export default function SettlePaymentModal({ orderId, onClose, onSuccess }) {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Total Amount (Read-only) */}
-            <div>
-              <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">
-                Total Amount
-              </label>
-              <div className="bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-zinc-850 font-bold text-lg">
-                ₱{formatMoney(totalAmount)}
+            {/* Total, Paid, and Balance Summary Grid */}
+            <div className="grid grid-cols-3 gap-2 bg-zinc-50 p-3 rounded-lg border border-zinc-200">
+              <div className="text-center">
+                <span className="block text-[9px] font-bold text-zinc-450 uppercase tracking-wider mb-0.5">Total Price</span>
+                <span className="text-sm font-bold text-zinc-850">₱{formatMoney(totalAmount)}</span>
+              </div>
+              <div className="text-center border-x border-zinc-200">
+                <span className="block text-[9px] font-bold text-zinc-450 uppercase tracking-wider mb-0.5">Paid So Far</span>
+                <span className="text-sm font-bold text-zinc-850">₱{formatMoney(prevPaid)}</span>
+              </div>
+              <div className="text-center">
+                <span className="block text-[9px] font-bold text-zinc-450 uppercase tracking-wider mb-0.5">Balance Due</span>
+                <span className="text-sm font-bold text-zinc-850">₱{formatMoney(balanceDue)}</span>
               </div>
             </div>
 
-            {/* Amount Paid (Editable) */}
+            {/* Amount Received (Editable Input) */}
             <div>
               <div className="flex justify-between items-center mb-1.5">
-                <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
-                  Amount Paid
+                <label className="block text-[10px] font-bold text-zinc-450 uppercase tracking-widest">
+                  Amount Received
                 </label>
-                <button
-                  type="button"
-                  onClick={handlePayInFull}
-                  className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors uppercase tracking-wider"
-                >
-                  Pay in Full
-                </button>
+                {balanceDue > 0 && (
+                  <button
+                    type="button"
+                    onClick={handlePayInFull}
+                    className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors uppercase tracking-wider"
+                  >
+                    Pay Remaining Balance
+                  </button>
+                )}
               </div>
               <div className="relative">
                 <span className="absolute inset-y-0 left-3 flex items-center text-zinc-450 text-sm font-bold pointer-events-none">
@@ -167,27 +194,28 @@ export default function SettlePaymentModal({ orderId, onClose, onSuccess }) {
                   min="0"
                   step="0.01"
                   placeholder="0.00"
-                  value={amountPaid}
-                  onChange={(e) => setAmountPaid(e.target.value)}
+                  value={amountReceived}
+                  onChange={(e) => setAmountReceived(e.target.value)}
                   required
                   className="w-full pl-7 pr-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm font-bold text-zinc-950 focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors"
+                  autoFocus
                 />
               </div>
             </div>
 
-            {/* Balance Due (Dynamic calculation) */}
+            {/* Remaining Balance (Dynamic calculation) */}
             <div>
               <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">
-                Balance Due
+                Remaining Balance
               </label>
               <div className={`border rounded-lg px-3 py-2 text-lg font-extrabold transition-all duration-200 ${
-                balanceDue <= 0 
+                remainingBalance <= 0 
                   ? "bg-emerald-50 border-emerald-100 text-emerald-700 shadow-sm"
                   : "bg-amber-50/50 border-amber-100/70 text-amber-700"
               }`}>
                 <div className="flex justify-between items-center">
-                  <span>₱{formatMoney(balanceDue)}</span>
-                  {balanceDue <= 0 && (
+                  <span>₱{formatMoney(remainingBalance)}</span>
+                  {remainingBalance <= 0 && (
                     <span className="text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm animate-pulse">
                       <Check className="w-3 h-3" /> Fully Paid
                     </span>
@@ -195,6 +223,27 @@ export default function SettlePaymentModal({ orderId, onClose, onSuccess }) {
                 </div>
               </div>
             </div>
+
+            {/* Payment History Log */}
+            {order.financial_breakdown?.paymentHistory && order.financial_breakdown.paymentHistory.length > 0 && (
+              <div className="bg-zinc-50 border border-zinc-150 rounded-lg p-3">
+                <span className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">
+                  Payment History
+                </span>
+                <div className="space-y-2 max-h-28 overflow-y-auto pr-1">
+                  {order.financial_breakdown.paymentHistory.map((entry, index) => (
+                    <div key={index} className="flex justify-between items-center text-xs">
+                      <span className="text-zinc-500 font-medium">
+                        {new Date(entry.date).toLocaleDateString()} {new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      <span className={`font-bold ${entry.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {entry.amount >= 0 ? '+' : ''}₱{formatMoney(entry.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Form actions */}
             <div className="flex gap-3 pt-3.5 border-t border-zinc-100">

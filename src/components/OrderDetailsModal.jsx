@@ -479,6 +479,18 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
         throw new Error('This order is missing related client or item records.');
       }
 
+      const prevBreakdown = data?.financial_breakdown || {};
+      const prevPaid = prevBreakdown.amountPaid !== undefined ? Number(prevBreakdown.amountPaid) : 0;
+      const nextPaid = Number(editorState.amountPaid || 0);
+      const diff = nextPaid - prevPaid;
+      let nextHistory = prevBreakdown.paymentHistory || [];
+      if (diff !== 0) {
+        nextHistory = [...nextHistory, {
+          amount: diff,
+          date: new Date().toISOString()
+        }];
+      }
+
       const financialBreakdown = {
         electricityCost: totals.elecCost,
         totalKWh: totals.totalKWh,
@@ -498,7 +510,8 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
         fixedFamilyPrice: Number(editorState.fixedFamilyPrice || 0),
         fixedQuantity: Number(editorState.fixedQuantity || 1),
         addToGallery: editorState.addToGallery !== false,
-        amountPaid: Number(editorState.amountPaid || 0),
+        amountPaid: nextPaid,
+        paymentHistory: nextHistory,
         editorState: {
           ...editorState,
           pricingMode: editorState.pricingMode || 'dynamic',
@@ -506,7 +519,7 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
           fixedFamilyPrice: Number(editorState.fixedFamilyPrice || 0),
           fixedQuantity: Number(editorState.fixedQuantity || 1),
           addToGallery: editorState.addToGallery !== false,
-          amountPaid: Number(editorState.amountPaid || 0),
+          amountPaid: nextPaid,
         },
       };
 
@@ -1642,6 +1655,24 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                                 <span>Remaining Balance</span>
                                 <span>₱{formatMoney(remainingBalance)}</span>
                               </div>
+
+                              {data.financial_breakdown.paymentHistory && data.financial_breakdown.paymentHistory.length > 0 && (
+                                <div className="mt-4 pt-3.5 border-t border-zinc-150">
+                                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-2">Payment History</span>
+                                  <div className="space-y-2 max-h-28 overflow-y-auto pr-1">
+                                    {data.financial_breakdown.paymentHistory.map((entry, index) => (
+                                      <div key={index} className="flex justify-between items-center text-xs">
+                                        <span className="text-zinc-500 font-medium">
+                                          {new Date(entry.date).toLocaleDateString()} {new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                        <span className={`font-bold ${entry.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                          {entry.amount >= 0 ? '+' : ''}₱{formatMoney(entry.amount)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </>
                         );
