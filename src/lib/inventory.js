@@ -136,10 +136,12 @@ export async function adjustInventoryStock({ filamentDeltaById = {}, materialDel
     await Promise.all(
       (data || []).map((row) => {
         const delta = Number(materialDeltaById[String(row.id)] || 0);
+        const newQty = Math.max(0, Number(row.quantity || 0) + delta);
         return supabase
           .from(INVENTORY_MATERIALS_TABLE)
           .update({
-            quantity: Math.max(0, Number(row.quantity || 0) + delta),
+            quantity: newQty,
+            bulk_price: Math.round(newQty * Number(row.cost_per_unit || 0) * 100) / 100,
             updated_at: new Date().toISOString(),
           })
           .eq('id', row.id);

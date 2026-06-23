@@ -16,6 +16,17 @@ import {
 const FILAMENT_TYPES = ['PLA Basic', 'PLA Glow', 'PLA Marble', 'PLA +', 'PETG', 'ABS', 'TPU'];
 const FILAMENT_BRANDS = ['Bambu Lab', 'eSun', 'Sunlu'];
 
+const MATERIAL_EXPENSE_CATEGORIES = [
+  'Hardware',
+  'Electronics',
+  'Components',
+  'Packaging',
+  'Consumables',
+  'Printer Parts',
+  'Finishing Materials',
+  'Other'
+];
+
 const DEFAULT_FILAMENTS = [
   { id: 1, type: 'PLA', brand: '', color: 'White', weightGrams: 1000, costPerKg: 700, notes: '' },
   { id: 2, type: 'PETG', brand: '', color: 'Black', weightGrams: 1000, costPerKg: 850, notes: '' },
@@ -28,28 +39,24 @@ const DEFAULT_MATERIALS = [
 const roundCurrency = (value) => Math.round((value || 0) * 100) / 100;
 
 function getMaterialBulkPrice(material) {
-  if (material?.bulkPrice != null && Number.isFinite(Number(material.bulkPrice))) {
-    return Number(material.bulkPrice);
-  }
   const quantity = Number(material?.quantity) || 0;
   const costPerUnit = Number(material?.costPerUnit) || 0;
   return quantity * costPerUnit;
 }
 
 function getMaterialUnitPrice(material) {
-  const quantity = Number(material?.quantity) || 0;
-  if (quantity <= 0) return 0;
-  return getMaterialBulkPrice(material) / quantity;
+  return Number(material?.costPerUnit) || 0;
 }
 
 function normalizeMaterial(material) {
   const quantity = Number(material?.quantity) || 0;
-  const bulkPrice = roundCurrency(getMaterialBulkPrice(material));
+  const costPerUnit = Number(material?.costPerUnit) || 0;
+  const bulkPrice = roundCurrency(quantity * costPerUnit);
   return {
     ...material,
     quantity,
+    costPerUnit,
     bulkPrice,
-    costPerUnit: quantity > 0 ? roundCurrency(bulkPrice / quantity) : 0,
   };
 }
 
@@ -375,10 +382,10 @@ function FilamentRow({ filament, onUpdate, onDelete, onRestock }) {
 
 function MaterialRow({ material, onUpdate, onDelete, onRestock }) {
   const [editing, setEditing] = useState(() => {
-    return material.name === 'New Item' && Number(material.quantity) === 0 && Number(material.bulkPrice) === 0;
+    return material.name === 'New Item' && Number(material.quantity) === 0 && Number(material.costPerUnit || 0) === 0;
   });
   const [draft, setDraft] = useState(() => normalizeMaterial(material));
-  const isInitialCreation = Number(material.quantity) === 0 && Number(material.bulkPrice) === 0;
+  const isInitialCreation = Number(material.costPerUnit || 0) === 0;
   const [restocking, setRestocking] = useState(false);
   const [restockQty, setRestockQty] = useState('');
   const [restockCost, setRestockCost] = useState('');
@@ -397,8 +404,12 @@ function MaterialRow({ material, onUpdate, onDelete, onRestock }) {
       alert("Please enter a valid quantity.");
       return;
     }
-    if (draft.bulkPrice <= 0) {
-      alert("Please enter a valid bulk purchase price.");
+    if (isInitialCreation && draft.quantity <= 0) {
+      alert("Please enter an initial quantity greater than 0.");
+      return;
+    }
+    if (draft.costPerUnit <= 0) {
+      alert("Please enter a valid price/cost.");
       return;
     }
     onUpdate(normalizeMaterial(draft));
@@ -406,7 +417,7 @@ function MaterialRow({ material, onUpdate, onDelete, onRestock }) {
   };
 
   const handleCancel = () => {
-    if (material.name === 'New Item' && Number(material.quantity) === 0 && Number(material.bulkPrice) === 0) {
+    if (material.name === 'New Item' && Number(material.quantity) === 0 && Number(material.costPerUnit || 0) === 0) {
       onDelete(material.id);
     } else {
       setDraft(normalizeMaterial(material));
@@ -461,21 +472,87 @@ function MaterialRow({ material, onUpdate, onDelete, onRestock }) {
           <input className="w-full text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900" value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} placeholder="Name" />
         </td>
         <td className="px-4 py-2">
-          <input className="w-full text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900" value={draft.category} onChange={e => setDraft(d => ({ ...d, category: e.target.value }))} placeholder="Category" />
+          <select
+            className="w-full text-sm border border-zinc-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 font-medium"
+            value={draft.category}
+            onChange={e => setDraft(d => ({ ...d, category: e.target.value }))}
+          >
+            {MATERIAL_EXPENSE_CATEGORIES.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+            {!MATERIAL_EXPENSE_CATEGORIES.includes(draft.category) && draft.category && (
+              <option value={draft.category}>{draft.category}</option>
+            )}
+          </select>
         </td>
         <td className="px-4 py-2">
           <div className="flex gap-1.5 items-center">
-            <input type="number" min="0" className="w-20 text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900 font-bold" value={draft.quantity} onChange={e => setDraft(d => ({ ...d, quantity: Number(e.target.value) }))} placeholder="Qty" />
+            <input
+              type="number"
+              min="0"
+              className="w-20 text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900 font-bold"
+              value={draft.quantity}
+              onChange={e => {
+                const qty = Number(e.target.value);
+                setDraft(d => {
+                  const bp = isInitialCreation ? Number(d.bulkPrice || 0) : (qty * Number(d.costPerUnit || 0));
+                  return {
+                    ...d,
+                    quantity: qty,
+                    bulkPrice: bp,
+                    costPerUnit: isInitialCreation ? (bp / Math.max(1, qty)) : d.costPerUnit
+                  };
+                });
+              }}
+              placeholder="Qty"
+            />
             <input className="w-16 text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900" value={draft.unit} onChange={e => setDraft(d => ({ ...d, unit: e.target.value }))} placeholder="unit (e.g. pcs)" />
           </div>
         </td>
         <td className="px-4 py-2 hidden"></td>
         <td className="px-4 py-2">
-          <div className="relative">
-            <input type="number" min="0" className="w-full text-sm border border-zinc-300 rounded px-2 py-1 pr-10 focus:outline-none focus:ring-1 focus:ring-zinc-900" value={draft.bulkPrice ?? ''} onChange={e => setDraft(d => ({ ...d, bulkPrice: Number(e.target.value) }))} />
-            <span className="absolute inset-y-0 right-2 flex items-center text-zinc-400 text-xs pointer-events-none">PHP</span>
-          </div>
-          <div className="mt-1 text-[10px] text-zinc-500">Unit price: PHP {getMaterialUnitPrice(draft).toFixed(2)}/{draft.unit || 'unit'}</div>
+          {isInitialCreation ? (
+            <>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="w-full text-sm border border-zinc-300 rounded px-2 py-1 pr-10 focus:outline-none focus:ring-1 focus:ring-zinc-900 font-bold"
+                  value={draft.bulkPrice ?? ''}
+                  onChange={e => {
+                    const bp = Number(e.target.value);
+                    const qty = Number(draft.quantity) || 1;
+                    setDraft(d => ({
+                      ...d,
+                      bulkPrice: bp,
+                      costPerUnit: bp / Math.max(1, qty)
+                    }));
+                  }}
+                  placeholder="Bulk Price"
+                />
+                <span className="absolute inset-y-0 right-2 flex items-center text-zinc-400 text-xs pointer-events-none">PHP (Bulk)</span>
+              </div>
+              <div className="mt-1 text-[10px] text-zinc-500">
+                Unit price: PHP {(Number(draft.bulkPrice || 0) / Math.max(1, Number(draft.quantity || 1))).toFixed(2)}/{draft.unit || 'pcs'}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="relative">
+                <input
+                  type="number"
+                  disabled
+                  className="w-full text-sm border border-zinc-300 rounded px-2 py-1 pr-10 bg-zinc-100 text-zinc-400 cursor-not-allowed font-medium"
+                  value={draft.costPerUnit ?? ''}
+                />
+                <span className="absolute inset-y-0 right-2 flex items-center text-zinc-400 text-xs pointer-events-none">PHP/unit</span>
+              </div>
+              <div className="mt-1 text-[10px] text-zinc-500">
+                Bulk price: PHP {(Number(draft.quantity || 0) * Number(draft.costPerUnit || 0)).toFixed(2)}
+              </div>
+            </>
+          )}
         </td>
         <td className="px-4 py-2">
           <div className="flex flex-col gap-1">
@@ -581,6 +658,7 @@ function ExpenseRow({ expense, onUpdate, onDelete }) {
     return expense.itemName === 'New Expense' && Number(expense.cost) === 0;
   });
   const [draft, setDraft] = useState(expense);
+  const isInitialCreation = Number(expense.cost || 0) === 0;
 
   const handleSave = () => {
     if (!draft.itemName.trim() || draft.itemName === 'New Expense') {
@@ -624,21 +702,39 @@ function ExpenseRow({ expense, onUpdate, onDelete }) {
           />
         </td>
         <td className="px-4 py-2">
-          <input
-            className="w-full text-sm border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+          <select
+            className="w-full text-sm border border-zinc-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 font-medium"
             value={draft.category}
             onChange={e => setDraft(d => ({ ...d, category: e.target.value }))}
-            placeholder="Category"
-          />
+          >
+            {MATERIAL_EXPENSE_CATEGORIES.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+            {!MATERIAL_EXPENSE_CATEGORIES.includes(draft.category) && draft.category && (
+              <option value={draft.category}>{draft.category}</option>
+            )}
+          </select>
         </td>
         <td className="px-4 py-2">
           <div className="relative">
-            <input
-              type="number" min="0"
-              className="w-full text-sm border border-zinc-300 rounded px-2 py-1 pr-10 focus:outline-none focus:ring-1 focus:ring-zinc-900"
-              value={draft.cost}
-              onChange={e => setDraft(d => ({ ...d, cost: Number(e.target.value) }))}
-            />
+            {isInitialCreation ? (
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className="w-full text-sm border border-zinc-300 rounded px-2 py-1 pr-10 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                value={draft.cost ?? ''}
+                onChange={e => setDraft(d => ({ ...d, cost: Number(e.target.value) }))}
+                placeholder="Cost"
+              />
+            ) : (
+              <input
+                type="number"
+                disabled
+                className="w-full text-sm border border-zinc-300 rounded px-2 py-1 pr-10 bg-zinc-100 text-zinc-400 cursor-not-allowed"
+                value={draft.cost ?? ''}
+              />
+            )}
             <span className="absolute inset-y-0 right-2 flex items-center text-zinc-400 text-xs pointer-events-none">PHP</span>
           </div>
         </td>
