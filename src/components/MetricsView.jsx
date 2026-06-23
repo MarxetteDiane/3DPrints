@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient';
 import { FileText, TrendingUp, Users, Printer, Clock, MoreHorizontal, CheckCircle2, Pencil, XCircle, Trash2, Loader2, AlertTriangle, ShieldAlert, Coins } from 'lucide-react';
 import OrderDetailsModal from './OrderDetailsModal';
 import SettlePaymentModal from './SettlePaymentModal';
+import { adjustInventoryStock } from '../lib/inventory';
 
 export default function MetricsView() {
   const [selectedOrderId, setSelectedOrderId] = useState(null);
@@ -93,6 +94,42 @@ export default function MetricsView() {
   // Hard delete mutation for cancelling orders
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
+      // 1. Fetch order to see if it is already cancelled. If not, restore inventory first
+      const { data: order, error: fetchErr } = await supabase
+        .from('orders')
+        .select('status, financial_breakdown')
+        .eq('id', id)
+        .single();
+      if (fetchErr) throw fetchErr;
+
+      if (order.status !== 'Cancelled') {
+        const editorState = order.financial_breakdown?.editorState;
+        if (editorState) {
+          const filamentDeltaById = {};
+          editorState.plates?.forEach((plate) => {
+            plate.filaments?.forEach((filament) => {
+              if (filament.inventoryId) {
+                const key = String(filament.inventoryId);
+                filamentDeltaById[key] = (filamentDeltaById[key] || 0) + (parseFloat(filament.weight) || 0);
+              }
+            });
+          });
+
+          const materialDeltaById = {};
+          editorState.materials?.forEach((material) => {
+            if (material.inventoryId) {
+              const key = String(material.inventoryId);
+              materialDeltaById[key] = (materialDeltaById[key] || 0) + (parseFloat(material.quantity) || 0);
+            }
+          });
+
+          if (Object.keys(filamentDeltaById).length > 0 || Object.keys(materialDeltaById).length > 0) {
+            await adjustInventoryStock({ filamentDeltaById, materialDeltaById });
+          }
+        }
+      }
+
+      // 2. Perform the hard delete
       const { error } = await supabase.from('orders').delete().eq('id', id);
       if (error) throw error;
     },
@@ -115,6 +152,54 @@ export default function MetricsView() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
+    }
+  });
+ 
+  // Mutation to cancel order and restore inventory
+  const cancelOrderMutation = useMutation({
+    mutationFn: async (id) => {
+      const { data: order, error: fetchErr } = await supabase
+        .from('orders')
+        .select('status, financial_breakdown')
+        .eq('id', id)
+        .single();
+      if (fetchErr) throw fetchErr;
+      if (order.status === 'Cancelled') return;
+
+      const editorState = order.financial_breakdown?.editorState;
+      if (editorState) {
+        const filamentDeltaById = {};
+        editorState.plates?.forEach((plate) => {
+          plate.filaments?.forEach((filament) => {
+            if (filament.inventoryId) {
+              const key = String(filament.inventoryId);
+              filamentDeltaById[key] = (filamentDeltaById[key] || 0) + (parseFloat(filament.weight) || 0);
+            }
+          });
+        });
+
+        const materialDeltaById = {};
+        editorState.materials?.forEach((material) => {
+          if (material.inventoryId) {
+            const key = String(material.inventoryId);
+            materialDeltaById[key] = (materialDeltaById[key] || 0) + (parseFloat(material.quantity) || 0);
+          }
+        });
+
+        if (Object.keys(filamentDeltaById).length > 0 || Object.keys(materialDeltaById).length > 0) {
+          await adjustInventoryStock({ filamentDeltaById, materialDeltaById });
+        }
+      }
+
+      const { error: updateErr } = await supabase
+        .from('orders')
+        .update({ status: 'Cancelled' })
+        .eq('id', id);
+      if (updateErr) throw updateErr;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
+      queryClient.invalidateQueries({ queryKey: ['completed-orders'] });
     }
   });
 
@@ -353,6 +438,18 @@ export default function MetricsView() {
                           >
                             <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
                             Report Failure
+                          </button>
+                          <button 
+                            onClick={() => {
+                              if (confirm('Are you sure you want to CANCEL this order? This will restore filaments and materials back to inventory.')) {
+                                cancelOrderMutation.mutate(order.id);
+                              }
+                              setOpenMenuId(null);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50 flex items-center gap-2 border-t border-zinc-100"
+                          >
+                            <XCircle className="w-3.5 h-3.5 text-amber-600" />
+                            Cancel Order
                           </button>
                           <button 
                             onClick={() => {

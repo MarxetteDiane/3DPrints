@@ -19,6 +19,7 @@ import {
   Trash2,
   Layers,
   Coins,
+  XCircle,
 } from 'lucide-react';
 
 const DEFAULT_CONFIG = {
@@ -463,7 +464,7 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
 
   const item = data?.items?.[0] || {};
   const client = data?.clients || {};
-  const canEdit = data?.status && data.status !== 'Completed';
+  const canEdit = data?.status && data.status !== 'Completed' && data.status !== 'Cancelled';
   const totals = editorState ? calculateTotals(editorState, config) : null;
   const displayTotalCost = totals
     ? totals.filCost + totals.elecCost + totals.supplementaryMatCost + totals.laborCost
@@ -574,6 +575,56 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
       setIsEditing(false);
     },
   });
+
+  const cancelMutation = useMutation({
+    mutationFn: async () => {
+      const prevBreakdown = data?.financial_breakdown || {};
+      const editorState = prevBreakdown.editorState;
+      if (editorState) {
+        const filamentDeltaById = {};
+        editorState.plates?.forEach((plate) => {
+          plate.filaments?.forEach((filament) => {
+            if (filament.inventoryId) {
+              const key = String(filament.inventoryId);
+              filamentDeltaById[key] = (filamentDeltaById[key] || 0) + (parseFloat(filament.weight) || 0);
+            }
+          });
+        });
+
+        const materialDeltaById = {};
+        editorState.materials?.forEach((material) => {
+          if (material.inventoryId) {
+            const key = String(material.inventoryId);
+            materialDeltaById[key] = (materialDeltaById[key] || 0) + (parseFloat(material.quantity) || 0);
+          }
+        });
+
+        if (Object.keys(filamentDeltaById).length > 0 || Object.keys(materialDeltaById).length > 0) {
+          await adjustInventoryStock({ filamentDeltaById, materialDeltaById });
+        }
+      }
+
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'Cancelled' })
+        .eq('id', orderId);
+        
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['order-details', orderId] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard-data'] }),
+        queryClient.invalidateQueries({ queryKey: ['completed-orders'] }),
+      ]);
+    }
+  });
+
+  const handleCancelOrder = () => {
+    if (confirm('Are you sure you want to CANCEL this order? This will restore filaments and materials back to inventory.')) {
+      cancelMutation.mutate();
+    }
+  };
 
   const handleStartEdit = () => {
     if (!data) return;
@@ -838,6 +889,14 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                   >
                     <Coins className="w-4 h-4 text-emerald-600" />
                     Settle Payment
+                  </button>
+                  <button
+                    onClick={handleCancelOrder}
+                    disabled={cancelMutation.isPending}
+                    className="px-3 py-2 text-sm font-semibold text-rose-700 bg-white border border-zinc-300 hover:bg-rose-50 rounded transition-colors inline-flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <XCircle className="w-4 h-4 text-rose-600" />
+                    Cancel Order
                   </button>
                   <button
                     onClick={handleStartEdit}
