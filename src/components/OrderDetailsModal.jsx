@@ -359,6 +359,17 @@ function buildMaterialUsageMap(editorState) {
   return usage;
 }
 
+/** Returns a warning string if usedAmount exceeds availableStock, otherwise null. */
+function getStockWarning(inventoryId, usedAmount, availableStock, unit) {
+  if (!inventoryId || availableStock == null) return null;
+  const diff = usedAmount - availableStock;
+  if (diff > 0) {
+    const formatted = Number.isInteger(diff) ? diff : diff.toFixed(2);
+    return `Item low on stock. Need ${formatted}${unit ? ' ' + unit : ''} more.`;
+  }
+  return null;
+}
+
 export default function OrderDetailsModal({ orderId, onClose, initialIsEditing = false }) {
   const queryClient = useQueryClient();
   const [config] = useState(() => getStoredConfig());
@@ -469,6 +480,12 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
   const displayTotalCost = totals
     ? totals.filCost + totals.elecCost + totals.supplementaryMatCost + totals.laborCost
     : 0;
+
+  // For stock warnings: add back quantities this order previously committed to inventory
+  // (those were already deducted from stock on last save, so they don't count against the limit)
+  const savedEditorState = data?.financial_breakdown?.editorState;
+  const prevFilamentUsage = savedEditorState ? buildInventoryUsageMap(savedEditorState) : {};
+  const prevMaterialUsage = savedEditorState ? buildMaterialUsageMap(savedEditorState) : {};
 
   const updateMutation = useMutation({
     mutationFn: async () => {
@@ -1256,6 +1273,21 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                                       />
                                       <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">g</span>
                                     </div>
+                                    {(() => {
+                                      if (!filament.inventoryId) return null;
+                                      const invItem = inventoryFilaments.find(f => String(f.id) === String(filament.inventoryId));
+                                      if (!invItem) return null;
+                                      const totalUsed = buildInventoryUsageMap(editorState)[String(filament.inventoryId)] || 0;
+                                      const prevCommitted = prevFilamentUsage[String(filament.inventoryId)] || 0;
+                                      const effectiveStock = invItem.weightGrams + prevCommitted;
+                                      const warning = getStockWarning(filament.inventoryId, totalUsed, effectiveStock, 'g');
+                                      if (!warning) return null;
+                                      return (
+                                        <p className="mt-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 leading-snug flex items-center gap-1">
+                                          ⚠️ {warning}
+                                        </p>
+                                      );
+                                    })()}
                                   </div>
                                   <div>
                                     <label className="block text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Cost Rate</label>
@@ -1324,6 +1356,21 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                                 />
                                 <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">{mat.unit || 'pcs'}</span>
                               </div>
+                              {(() => {
+                                if (!mat.inventoryId) return null;
+                                const invItem = inventoryMaterials.find(m => String(m.id) === String(mat.inventoryId));
+                                if (!invItem) return null;
+                                const totalUsed = buildMaterialUsageMap(editorState)[String(mat.inventoryId)] || 0;
+                                const prevCommitted = prevMaterialUsage[String(mat.inventoryId)] || 0;
+                                const effectiveStock = invItem.quantity + prevCommitted;
+                                const warning = getStockWarning(mat.inventoryId, totalUsed, effectiveStock, mat.unit || 'pcs');
+                                if (!warning) return null;
+                                return (
+                                  <p className="mt-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 leading-snug flex items-center gap-1">
+                                    ⚠️ {warning}
+                                  </p>
+                                );
+                              })()}
                             </div>
                             <div>
                               <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Cost / Unit</label>

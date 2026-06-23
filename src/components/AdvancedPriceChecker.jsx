@@ -170,6 +170,38 @@ function formReducer(state, action) {
 
 // Binary STL parser removed as per user request to replace with image url input
 
+function buildFilamentUsageMap(plates) {
+  const usage = {};
+  plates?.forEach((plate) => {
+    plate.filaments?.forEach((filament) => {
+      if (!filament.inventoryId) return;
+      const key = String(filament.inventoryId);
+      usage[key] = (usage[key] || 0) + (parseFloat(filament.weight) || 0);
+    });
+  });
+  return usage;
+}
+
+function buildMaterialUsageMap(materials) {
+  const usage = {};
+  materials?.forEach((material) => {
+    if (!material.inventoryId) return;
+    const key = String(material.inventoryId);
+    usage[key] = (usage[key] || 0) + (parseFloat(material.quantity) || 0);
+  });
+  return usage;
+}
+
+function getStockWarning(inventoryId, usedAmount, availableStock, unit) {
+  if (!inventoryId || availableStock == null) return null;
+  const diff = usedAmount - availableStock;
+  if (diff > 0) {
+    const formatted = Number.isInteger(diff) ? diff : diff.toFixed(2);
+    return `Item low on stock. Need ${formatted}${unit ? ' ' + unit : ''} more.`;
+  }
+  return null;
+}
+
 export default function AdvancedPriceChecker({ config }) {
   const [state, dispatch] = useReducer(formReducer, config, init);
   const queryClient = useQueryClient();
@@ -856,6 +888,19 @@ export default function AdvancedPriceChecker({ config }) {
                               />
                               <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">g</span>
                             </div>
+                            {(() => {
+                              if (!filament.inventoryId) return null;
+                              const invItem = inventoryFilaments.find(f => String(f.id) === String(filament.inventoryId));
+                              if (!invItem) return null;
+                              const totalUsed = buildFilamentUsageMap(state.plates)[String(filament.inventoryId)] || 0;
+                              const warning = getStockWarning(filament.inventoryId, totalUsed, invItem.weightGrams, 'g');
+                              if (!warning) return null;
+                              return (
+                                <p className="mt-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 leading-snug flex items-center gap-1">
+                                  ⚠️ {warning}
+                                </p>
+                              );
+                            })()}
                           </div>
 
                           {/* Cost Rate (auto-filled from inventory, still editable) */}
@@ -959,6 +1004,19 @@ export default function AdvancedPriceChecker({ config }) {
                         />
                         <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">{mat.unit || 'pcs'}</span>
                       </div>
+                      {(() => {
+                        if (!mat.inventoryId) return null;
+                        const invItem = inventoryMaterials.find(m => String(m.id) === String(mat.inventoryId));
+                        if (!invItem) return null;
+                        const totalUsed = buildMaterialUsageMap(state.materials)[String(mat.inventoryId)] || 0;
+                        const warning = getStockWarning(mat.inventoryId, totalUsed, invItem.quantity, mat.unit || 'pcs');
+                        if (!warning) return null;
+                        return (
+                          <p className="mt-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 leading-snug flex items-center gap-1">
+                            ⚠️ {warning}
+                          </p>
+                        );
+                      })()}
                     </div>
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Cost / Unit</label>
