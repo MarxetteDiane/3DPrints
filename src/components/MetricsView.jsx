@@ -1,14 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
-import { FileText, TrendingUp, Users, Printer, Clock, MoreHorizontal, CheckCircle2, Pencil, XCircle, Trash2, Loader2, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { FileText, TrendingUp, Users, Printer, Clock, MoreHorizontal, CheckCircle2, Pencil, XCircle, Trash2, Loader2, AlertTriangle, ShieldAlert, Coins } from 'lucide-react';
 import OrderDetailsModal from './OrderDetailsModal';
+import SettlePaymentModal from './SettlePaymentModal';
 
 export default function MetricsView() {
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [failureOrderId, setFailureOrderId] = useState(null);
+  const [settlePaymentOrderId, setSettlePaymentOrderId] = useState(null);
   const menuRef = useRef(null);
   const queryClient = useQueryClient();
 
@@ -321,13 +323,23 @@ export default function MetricsView() {
                           className="absolute right-6 top-10 w-36 bg-white border border-zinc-200 rounded shadow-xl z-30 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
                           onClick={(e) => e.stopPropagation()}
                         >
+                           <button 
+                            onClick={() => {
+                              setSettlePaymentOrderId(order.id);
+                              setOpenMenuId(null);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 flex items-center gap-2"
+                          >
+                            <Coins className="w-3.5 h-3.5 text-emerald-600" />
+                            Settle Payment
+                          </button>
                           <button 
                             onClick={() => {
                               setSelectedOrderId(order.id);
                               setIsEditing(true);
                               setOpenMenuId(null);
                             }}
-                            className="w-full text-left px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 flex items-center gap-2"
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 flex items-center gap-2 border-t border-zinc-100"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                             Edit Order
@@ -382,6 +394,14 @@ export default function MetricsView() {
             setSelectedOrderId(null);
             setIsEditing(false);
           }} 
+        />
+      )}
+
+      {/* Settle Payment Modal Overlay */}
+      {settlePaymentOrderId && (
+        <SettlePaymentModal 
+          orderId={settlePaymentOrderId} 
+          onClose={() => setSettlePaymentOrderId(null)} 
         />
       )}
 

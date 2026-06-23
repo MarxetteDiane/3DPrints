@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
 import { adjustInventoryStock, fetchInventoryFilaments, fetchInventoryMaterials } from '../lib/inventory';
+import SettlePaymentModal from './SettlePaymentModal';
 import {
   X,
   User,
@@ -365,6 +366,7 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
   const [isEditing, setIsEditing] = useState(initialIsEditing);
   const [editorState, setEditorState] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [isSettlingPayment, setIsSettlingPayment] = useState(false);
 
   const handleImageFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -816,13 +818,22 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                   </button>
                 </>
               ) : (
-                <button
-                  onClick={handleStartEdit}
-                  className="px-3 py-2 text-sm font-semibold text-zinc-700 bg-white border border-zinc-300 hover:bg-zinc-100 rounded transition-colors inline-flex items-center gap-2"
-                >
-                  <Pencil className="w-4 h-4" />
-                  Edit Order
-                </button>
+                <>
+                  <button
+                    onClick={() => setIsSettlingPayment(true)}
+                    className="px-3 py-2 text-sm font-semibold text-zinc-700 bg-white border border-zinc-300 hover:bg-zinc-100 rounded transition-colors inline-flex items-center gap-2"
+                  >
+                    <Coins className="w-4 h-4 text-emerald-600" />
+                    Settle Payment
+                  </button>
+                  <button
+                    onClick={handleStartEdit}
+                    className="px-3 py-2 text-sm font-semibold text-zinc-700 bg-white border border-zinc-300 hover:bg-zinc-100 rounded transition-colors inline-flex items-center gap-2"
+                  >
+                    <Pencil className="w-4 h-4" />
+                    Edit Order
+                  </button>
+                </>
               )
             )}
             <button
@@ -1664,6 +1675,12 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
           </button>
         </div>
       </div>
+      {isSettlingPayment && (
+        <SettlePaymentModal 
+          orderId={orderId} 
+          onClose={() => setIsSettlingPayment(false)} 
+        />
+      )}
     </div>
   );
 }
