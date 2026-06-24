@@ -1218,9 +1218,8 @@ export default function AdvancedPriceChecker({ config }) {
 
           <div className="p-6 space-y-4">
             <div className="flex justify-between items-center group">
-              <span className="font-semibold text-xs uppercase tracking-wider text-zinc-500">Selling Price</span>
-              <div className="relative w-40">
-                <span className="absolute inset-y-0 left-3 flex items-center text-zinc-400 text-sm font-bold pointer-events-none">₱</span>
+              <span className="font-semibold text-xs uppercase tracking-wider text-zinc-500">Selling Price ₱</span>
+              <div className="relative flex items-baseline cursor-text" onClick={(e) => { const input = e.currentTarget.querySelector('input'); if (input) input.focus(); }}>
                 <input
                   type="number"
                   min="0"
@@ -1228,7 +1227,7 @@ export default function AdvancedPriceChecker({ config }) {
                   value={customFinalPrice}
                   placeholder={finalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   onChange={(e) => setCustomFinalPrice(e.target.value)}
-                  className="w-full pl-7 pr-3 py-1.5 text-right bg-zinc-50 border border-zinc-200 rounded-md text-sm font-bold text-zinc-950 focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors"
+                  className="w-36 text-right bg-transparent border-none outline-none text-2xl font-black text-zinc-900 tracking-tight placeholder:text-zinc-900 focus:bg-zinc-50 focus:border focus:border-zinc-300 focus:rounded-md focus:px-2 focus:py-0.5 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
               </div>
             </div>
