@@ -39,7 +39,7 @@ export default function MetricsView() {
         .not('status', 'in', '("Completed", "Cancelled")')
         .order('created_at', { ascending: false })
         .limit(50);
-        
+
       if (ordersError) throw ordersError;
 
       return {
@@ -69,7 +69,7 @@ export default function MetricsView() {
     onMutate: async ({ id, nextStatus }) => {
       await queryClient.cancelQueries({ queryKey: ['dashboard-data'] });
       const previousData = queryClient.getQueryData(['dashboard-data']);
-      
+
       queryClient.setQueryData(['dashboard-data'], (old) => {
         if (!old) return old;
         return {
@@ -136,7 +136,7 @@ export default function MetricsView() {
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: ['dashboard-data'] });
       const previousData = queryClient.getQueryData(['dashboard-data']);
-      
+
       queryClient.setQueryData(['dashboard-data'], (old) => {
         if (!old) return old;
         return {
@@ -154,7 +154,7 @@ export default function MetricsView() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
     }
   });
- 
+
   // Mutation to cancel order and restore inventory
   const cancelOrderMutation = useMutation({
     mutationFn: async (id) => {
@@ -203,15 +203,9 @@ export default function MetricsView() {
     }
   });
 
-  const cycleStatus = (id, currentStatus) => {
-    const statuses = ['Pending', 'Printing', 'Post-Processing', 'Awaiting Payment', 'For Delivery', 'Completed'];
-    const nextIndex = (statuses.indexOf(currentStatus) + 1) % statuses.length;
-    statusMutation.mutate({ id, nextStatus: statuses[nextIndex] });
-  };
-
-  const StatusBadge = ({ status, onClick }) => {
+  const StatusBadge = ({ status, onChange }) => {
     let colorClass = '';
-    switch(status) {
+    switch (status) {
       case 'Pending': colorClass = 'bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-200'; break;
       case 'Printing': colorClass = 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200'; break;
       case 'Post-Processing': colorClass = 'bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-200'; break;
@@ -221,19 +215,34 @@ export default function MetricsView() {
       default: colorClass = 'bg-zinc-100 text-zinc-700 border-zinc-200 hover:bg-zinc-200';
     }
 
+    const statuses = ['Pending', 'Printing', 'Post-Processing', 'Awaiting Payment', 'For Delivery', 'Completed'];
+
     return (
-      <button 
-        onClick={(e) => { e.stopPropagation(); onClick(); }}
-        className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border transition-colors cursor-pointer ${colorClass}`}
+      <div
+        className="inline-block relative"
+        onClick={(e) => e.stopPropagation()}
       >
-        {status}
-      </button>
+        <select
+          value={status}
+          onChange={(e) => {
+            e.stopPropagation();
+            onChange(e.target.value);
+          }}
+          className={`pl-3 pr-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border transition-colors cursor-pointer appearance-none outline-none text-center ${colorClass}`}
+        >
+          {statuses.map((s) => (
+            <option key={s} value={s} className="bg-white text-zinc-800 font-semibold normal-case">
+              {s}
+            </option>
+          ))}
+        </select>
+      </div>
     );
   };
 
   return (
     <div className="space-y-8">
-      
+
       {/* Error State */}
       {isError && !data && (
         <div className="bg-red-50 border border-red-200 p-6 rounded-lg text-center">
@@ -242,7 +251,7 @@ export default function MetricsView() {
           <p className="text-red-700 text-sm mb-6">
             We're having trouble connecting to the database. {queryError?.message || 'Please check your connection.'}
           </p>
-          <button 
+          <button
             onClick={() => refetch()}
             className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded font-bold shadow-sm transition-colors"
           >
@@ -253,7 +262,7 @@ export default function MetricsView() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        
+
         <div className="bg-white p-5 rounded-lg border border-zinc-200 shadow-sm flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm font-semibold text-zinc-500 uppercase tracking-widest">Active Orders</span>
@@ -333,7 +342,7 @@ export default function MetricsView() {
                   ? Number(order.financial_breakdown.amountPaid)
                   : (order.status === 'Completed' ? total : 0);
                 const balance = Math.max(0, total - amountPaid);
-                
+
                 const formatMoney = (val) => {
                   const num = Number.parseFloat(val);
                   if (!Number.isFinite(num)) return '0.00';
@@ -344,8 +353,8 @@ export default function MetricsView() {
                 };
 
                 return (
-                  <tr 
-                    key={order.id} 
+                  <tr
+                    key={order.id}
                     className="hover:bg-zinc-50 transition-colors cursor-pointer"
                     onClick={() => setSelectedOrderId(order.id)}
                   >
@@ -388,27 +397,30 @@ export default function MetricsView() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <StatusBadge status={order.status} onClick={() => cycleStatus(order.id, order.status)} />
+                      <StatusBadge
+                        status={order.status}
+                        onChange={(nextStatus) => statusMutation.mutate({ id: order.id, nextStatus })}
+                      />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right relative">
-                      <button 
+                      <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpenMenuId(openMenuId === order.id ? null : order.id);
                         }}
-                        className="text-zinc-400 hover:text-zinc-900 transition-colors tooltip p-1 rounded-full hover:bg-zinc-100" 
+                        className="text-zinc-400 hover:text-zinc-900 transition-colors tooltip p-1 rounded-full hover:bg-zinc-100"
                         title="Manage Order"
                       >
                         <MoreHorizontal className="w-5 h-5 ml-auto" />
                       </button>
-                      
+
                       {openMenuId === order.id && (
-                        <div 
+                        <div
                           ref={menuRef}
                           className="absolute right-6 top-10 w-36 bg-white border border-zinc-200 rounded shadow-xl z-30 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
                           onClick={(e) => e.stopPropagation()}
                         >
-                           <button 
+                          <button
                             onClick={() => {
                               setSettlePaymentOrderId(order.id);
                               setOpenMenuId(null);
@@ -418,7 +430,7 @@ export default function MetricsView() {
                             <Coins className="w-3.5 h-3.5 text-emerald-600" />
                             Settle Payment
                           </button>
-                          <button 
+                          <button
                             onClick={() => {
                               setSelectedOrderId(order.id);
                               setIsEditing(true);
@@ -429,7 +441,7 @@ export default function MetricsView() {
                             <Pencil className="w-3.5 h-3.5" />
                             Edit Order
                           </button>
-                          <button 
+                          <button
                             onClick={() => {
                               setFailureOrderId(order.id);
                               setOpenMenuId(null);
@@ -439,7 +451,7 @@ export default function MetricsView() {
                             <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
                             Report Failure
                           </button>
-                          <button 
+                          <button
                             onClick={() => {
                               if (confirm('Are you sure you want to CANCEL this order? This will restore filaments and materials back to inventory.')) {
                                 cancelOrderMutation.mutate(order.id);
@@ -451,7 +463,7 @@ export default function MetricsView() {
                             <XCircle className="w-3.5 h-3.5 text-amber-600" />
                             Cancel Order
                           </button>
-                          <button 
+                          <button
                             onClick={() => {
                               if (confirm('Are you sure you want to PERMANENTLY DELETE this order? This action cannot be undone.')) {
                                 deleteMutation.mutate(order.id);
@@ -469,7 +481,7 @@ export default function MetricsView() {
                   </tr>
                 );
               })}
-              
+
               {!isPending && orders.length === 0 && (
                 <tr>
                   <td colSpan="7" className="px-6 py-10 text-center text-zinc-500">
@@ -481,32 +493,32 @@ export default function MetricsView() {
           </table>
         </div>
       </div>
-      
+
       {/* Order Details Modal Overlay */}
       {selectedOrderId && (
-        <OrderDetailsModal 
-          orderId={selectedOrderId} 
+        <OrderDetailsModal
+          orderId={selectedOrderId}
           initialIsEditing={isEditing}
           onClose={() => {
             setSelectedOrderId(null);
             setIsEditing(false);
-          }} 
+          }}
         />
       )}
 
       {/* Settle Payment Modal Overlay */}
       {settlePaymentOrderId && (
-        <SettlePaymentModal 
-          orderId={settlePaymentOrderId} 
-          onClose={() => setSettlePaymentOrderId(null)} 
+        <SettlePaymentModal
+          orderId={settlePaymentOrderId}
+          onClose={() => setSettlePaymentOrderId(null)}
         />
       )}
 
       {/* Track 3: Report Failure Modal Overlay */}
       {failureOrderId && (
-        <ReportFailureModal 
-          orderId={failureOrderId} 
-          onClose={() => setFailureOrderId(null)} 
+        <ReportFailureModal
+          orderId={failureOrderId}
+          onClose={() => setFailureOrderId(null)}
         />
       )}
     </div>
@@ -537,7 +549,7 @@ function ReportFailureModal({ orderId, onClose }) {
         console.error(e);
       }
     }
-    
+
     // Fetch order item name
     supabase
       .from('orders')
@@ -642,7 +654,7 @@ function ReportFailureModal({ orderId, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-zinc-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div 
+      <div
         className="bg-white border border-zinc-200 shadow-2xl rounded-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
