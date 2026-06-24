@@ -46,7 +46,7 @@ function init(config) {
         filaments: [{ id: Date.now() + 1, weight: 0, costPerKg: 700 }]
       }
     ],
-    labors: [{ id: Date.now() + 2, type: '3D Modeling & Printing', hours: 0, rate: config?.hourlyLaborRate || 250 }]
+    labors: [{ id: Date.now() + 2, type: '3D Modeling & Printing', hours: 0, rate: config?.hourlyLaborRate || 250, worker: '' }]
   };
 }
 
@@ -149,7 +149,7 @@ function formReducer(state, action) {
     case 'ADD_LABOR':
       return {
         ...state,
-        labors: [...state.labors, { id: Date.now(), type: '3D Modeling & Printing', hours: 0, rate: action.defaultRate || 250 }]
+        labors: [...state.labors, { id: Date.now(), type: '3D Modeling & Printing', hours: 0, rate: action.defaultRate || 250, worker: '' }]
       };
     case 'UPDATE_LABOR':
       return {
@@ -1062,7 +1062,7 @@ export default function AdvancedPriceChecker({ config }) {
             ) : (
               <div className="space-y-4">
                 {state.labors.map((lab) => (
-                  <div key={lab.id} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_auto] gap-4 md:gap-3 items-end bg-zinc-50 p-4 md:p-3 rounded border border-zinc-100">
+                  <div key={lab.id} className="grid grid-cols-1 md:grid-cols-[1.5fr_1.2fr_0.8fr_0.8fr_auto] gap-4 md:gap-3 items-end bg-zinc-50 p-4 md:p-3 rounded border border-zinc-100">
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Operation Phase</label>
                       <select
@@ -1076,6 +1076,16 @@ export default function AdvancedPriceChecker({ config }) {
                         <option value="Assembly">Assembly</option>
                         <option value="Other">Other</option>
                       </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Worker / Assigned</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Macky"
+                        value={lab.worker || ''}
+                        onChange={(e) => dispatch({ type: 'UPDATE_LABOR', id: lab.id, field: 'worker', value: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-medium"
+                      />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Duration</label>

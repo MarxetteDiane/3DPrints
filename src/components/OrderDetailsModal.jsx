@@ -101,6 +101,7 @@ function createLabor(defaultRate, overrides = {}) {
     type: '3D Modeling & Printing',
     hours: 0,
     rate: defaultRate,
+    worker: '',
     ...overrides,
   };
 }
@@ -139,6 +140,7 @@ function toEditorState(order, config) {
         persisted.labors?.map((labor) => ({
           ...labor,
           id: labor.id || makeId('labor'),
+          worker: labor.worker || '',
         })) || [createLabor(config.hourlyLaborRate)],
       packagingCost: persisted.packagingCost ?? 0,
       shippingCost: persisted.shippingCost ?? 0,
@@ -1408,7 +1410,7 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                     ) : (
                       <div className="space-y-4">
                         {editorState.labors.map((lab) => (
-                          <div key={lab.id} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_auto] gap-4 md:gap-3 items-end bg-zinc-50 p-4 md:p-3 rounded border border-zinc-100">
+                          <div key={lab.id} className="grid grid-cols-1 md:grid-cols-[1.5fr_1.2fr_0.8fr_0.8fr_auto] gap-4 md:gap-3 items-end bg-zinc-50 p-4 md:p-3 rounded border border-zinc-100">
                             <div>
                               <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Operation Phase</label>
                               <select value={lab.type} onChange={(e) => updateLabor(lab.id, 'type', e.target.value)} className={fieldClass}>
@@ -1418,6 +1420,16 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                                 <option value="Assembly">Assembly</option>
                                 <option value="Other">Other</option>
                               </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Worker / Assigned</label>
+                              <input
+                                type="text"
+                                placeholder="e.g. Macky"
+                                value={lab.worker || ''}
+                                onChange={(e) => updateLabor(lab.id, 'worker', e.target.value)}
+                                className={fieldClass}
+                              />
                             </div>
                             <div>
                               <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Duration</label>
@@ -1443,7 +1455,7 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                                 <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 text-xs pointer-events-none">/hr</span>
                               </div>
                             </div>
-                            <button onClick={() => removeLabor(lab.id)} className="p-2.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-200 rounded transition-colors">
+                            <button onClick={() => removeLabor(lab.id)} className="p-2.5 text-zinc-400 hover:text-zinc-950 hover:bg-zinc-200 rounded transition-colors">
                               <Trash2 className="w-5 h-5" />
                             </button>
                           </div>
@@ -1659,6 +1671,55 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                   <div className="p-4 flex flex-col items-center justify-center text-center"><Wrench className="w-5 h-5 text-zinc-400 mb-2" /><p className="text-xl font-bold text-zinc-900">{Number.parseFloat(item.labor_hours || 0).toFixed(1)}h</p><p className="text-xs font-medium text-zinc-500 uppercase tracking-widest mt-1">Labor Allocated</p></div>
                 </div>
               </div>
+
+              {data.financial_breakdown?.editorState?.labors?.length > 0 && (
+                <div className="border border-zinc-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                  <div className="bg-zinc-50 px-5 py-3 border-b border-zinc-200">
+                    <h4 className="font-semibold text-zinc-900 text-sm uppercase tracking-wider flex items-center gap-2">
+                      <Wrench className="w-4 h-4 text-zinc-500" />
+                      Labor Allocation Breakdown
+                    </h4>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm text-zinc-600">
+                      <thead className="bg-zinc-50 border-b border-zinc-200 text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
+                        <tr>
+                          <th className="px-6 py-3 font-semibold">Task</th>
+                          <th className="px-6 py-3 font-semibold">Operation Phase</th>
+                          <th className="px-6 py-3 font-semibold">Worker / Assigned</th>
+                          <th className="px-6 py-3 font-semibold text-center">Duration</th>
+                          <th className="px-6 py-3 font-semibold text-right">Rate</th>
+                          <th className="px-6 py-3 font-semibold text-right">Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-100 bg-white">
+                        {data.financial_breakdown.editorState.labors.map((lab, index) => (
+                          <tr key={lab.id || index} className="hover:bg-zinc-50/50 transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap font-bold text-zinc-400 text-xs">
+                              Task {index + 1}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap font-semibold text-zinc-900">
+                              {lab.type}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-zinc-700 font-medium">
+                              {lab.worker || <span className="text-zinc-400 italic">Unassigned</span>}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-center font-medium text-zinc-900">
+                              {lab.hours} hrs
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-zinc-500 font-medium">
+                              ₱{formatMoney(lab.rate)}/hr
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right font-bold text-zinc-900">
+                              ₱{formatMoney((parseFloat(lab.hours) || 0) * (parseFloat(lab.rate) || 0))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {data.financial_breakdown ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
