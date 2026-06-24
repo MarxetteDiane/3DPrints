@@ -136,8 +136,17 @@ export default function FinancialReportView() {
         return s + Math.max(0, total - paid);
       }, 0);
 
-      // ── Production cost components collected from orders ───────────────
-      const pick = (o, key) => o.status === 'Cancelled' ? 0 : Number(o.financial_breakdown?.[key] || 0);
+      // ── Production cost components collected from PAID orders only ─────
+      // An order is "paid" when amountPaid >= total_price, or when it's
+      // Completed with no explicit amountPaid (legacy orders assumed paid).
+      const isPaid = (o) => {
+        if (o.status === 'Cancelled') return false;
+        const total = Number(o.total_price || 0);
+        const fb = o.financial_breakdown || {};
+        if (fb.amountPaid !== undefined) return Number(fb.amountPaid) >= total;
+        return o.status === 'Completed';
+      };
+      const pick = (o, key) => isPaid(o) ? Number(o.financial_breakdown?.[key] || 0) : 0;
 
       const col_materials     = orders.reduce((s, o) => s + pick(o, 'filamentCost'), 0);
       const col_utilities     = orders.reduce((s, o) => s + pick(o, 'electricityCost'), 0);
@@ -284,13 +293,13 @@ export default function FinancialReportView() {
 
   const funds = [
     {
-      key: 'utilities', canWithdraw: true, title: 'Utilities Fund', subtitle: 'Electricity · Internet · Infrastructure',
+      key: 'utilities', canWithdraw: true, buttonLabel: 'Pay Utility', expenseCategory: 'Utilities', title: 'Utilities Fund', subtitle: 'Electricity · Internet · Infrastructure',
       icon: <Zap className="w-3.5 h-3.5 text-amber-600" />, headerBg: 'bg-amber-50', iconBg: 'bg-amber-100',
       balance: bal_utilities, collected: col_utilities, collectLabel: 'Utilities Collected',
       breakdown: [
         { label: 'Utilities Collected', value: col_utilities, positive: true },
         { label: 'Utilities Paid', value: spent_utilities, positive: false },
-        { label: 'Withdrawals', value: withdrawals_utilities, positive: false },
+        ...(withdrawals_utilities > 0 ? [{ label: 'Legacy Withdrawals', value: withdrawals_utilities, positive: false }] : []),
       ],
     },
     {
@@ -304,24 +313,24 @@ export default function FinancialReportView() {
       ],
     },
     {
-      key: 'labor', canWithdraw: true, title: 'Labor Fund', subtitle: 'Workers · Contractors · Owner labor',
+      key: 'labor', canWithdraw: true, buttonLabel: 'Pay Labor', expenseCategory: 'Labor', title: 'Labor Fund', subtitle: 'Workers · Contractors · Owner labor',
       icon: <Wrench className="w-3.5 h-3.5 text-sky-600" />, headerBg: 'bg-sky-50', iconBg: 'bg-sky-100',
       balance: bal_labor, collected: col_labor, collectLabel: 'Labor Collected',
       breakdown: [
         { label: 'Labor Collected', value: col_labor, positive: true },
         { label: 'Labor Paid', value: spent_labor, positive: false },
-        { label: 'Withdrawals', value: withdrawals_labor, positive: false },
+        ...(withdrawals_labor > 0 ? [{ label: 'Legacy Withdrawals', value: withdrawals_labor, positive: false }] : []),
       ],
     },
     {
-      key: 'printer', canWithdraw: true, title: 'Printer Fund', subtitle: 'Maintenance · Repairs · Replacement',
+      key: 'printer', canWithdraw: true, buttonLabel: 'Log Printer Expense', expenseCategory: 'Printer', title: 'Printer Fund', subtitle: 'Maintenance · Repairs · Replacement',
       icon: <Printer className="w-3.5 h-3.5 text-orange-600" />, headerBg: 'bg-orange-50', iconBg: 'bg-orange-100',
       balance: bal_printer, collected: col_machineWear + col_wasteBuffer, collectLabel: 'Wear + Waste Collected',
       breakdown: [
         { label: 'Machine Wear Collected', value: col_machineWear, positive: true },
         { label: 'Waste Buffer Collected', value: col_wasteBuffer, positive: true },
         { label: 'Printer Expenses Paid', value: spent_printer, positive: false },
-        { label: 'Withdrawals', value: withdrawals_printer, positive: false },
+        ...(withdrawals_printer > 0 ? [{ label: 'Legacy Withdrawals', value: withdrawals_printer, positive: false }] : []),
       ],
     },
   ];
@@ -352,24 +361,24 @@ export default function FinancialReportView() {
       return;
     }
     if (amount > Math.max(0, withdrawalFund.balance)) {
-      setWithdrawalError('Withdrawal amount cannot exceed the current fund balance.');
+      setWithdrawalError('Amount cannot exceed the current fund balance.');
       return;
     }
 
     setWithdrawalSaving(true);
     setWithdrawalError('');
-    const { error } = await supabase.from(FUND_WITHDRAWALS_TABLE).insert({
+    // Save as an expense so it shows under the fund's "Paid" line
+    const { error } = await supabase.from(INVENTORY_EXPENSES_TABLE).insert({
       date: withdrawalDraft.date || new Date().toISOString(),
-      fund: withdrawalFund.key,
-      amount,
-      withdrawn_by: withdrawalDraft.withdrawnBy.trim() || 'Unknown',
-      purpose: withdrawalDraft.purpose.trim(),
+      item_name: withdrawalDraft.purpose.trim() || withdrawalFund.buttonLabel,
+      category: withdrawalFund.expenseCategory,
+      cost: amount,
+      payer: withdrawalDraft.withdrawnBy.trim() || 'MackyPrint',
       notes: withdrawalDraft.notes.trim(),
-      updated_at: new Date().toISOString(),
     });
 
     if (error) {
-      setWithdrawalError(error.message || 'Failed to save withdrawal.');
+      setWithdrawalError(error.message || 'Failed to save expense.');
       setWithdrawalSaving(false);
       return;
     }
@@ -472,9 +481,9 @@ export default function FinancialReportView() {
                       onClick={() => openWithdrawalModal(fund)}
                       disabled={fund.balance <= 0}
                       className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-zinc-700 hover:bg-zinc-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                      title={fund.balance > 0 ? `Withdraw from ${fund.title}` : 'No balance available to withdraw'}
+                      title={fund.balance > 0 ? fund.buttonLabel : 'No balance available'}
                     >
-                      <Wallet className="w-3 h-3" /> Withdraw
+                      <Wallet className="w-3 h-3" /> {fund.buttonLabel}
                     </button>
                   )}
                 </div>
@@ -787,8 +796,8 @@ export default function FinancialReportView() {
                 <Wallet className="w-4 h-4 text-zinc-700" />
               </div>
               <div className="flex-1 min-w-0">
-                <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-900">Record Withdrawal</h2>
-                <p className="text-xs text-zinc-500 truncate">{withdrawalFund.title} - available {php(Math.max(0, withdrawalFund.balance))}</p>
+                <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-900">{withdrawalFund.buttonLabel}</h2>
+                <p className="text-xs text-zinc-500 truncate">{withdrawalFund.title} — available {php(Math.max(0, withdrawalFund.balance))}</p>
               </div>
               <button type="button" onClick={closeWithdrawalModal} className="p-1.5 rounded-lg hover:bg-zinc-200 text-zinc-500" title="Close">
                 <X className="w-4 h-4" />
@@ -821,7 +830,7 @@ export default function FinancialReportView() {
               </div>
 
               <label className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Withdrawn By</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Payer</span>
                 <input
                   type="text"
                   value={withdrawalDraft.withdrawnBy}
@@ -831,13 +840,13 @@ export default function FinancialReportView() {
               </label>
 
               <label className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Purpose</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Description</span>
                 <input
                   type="text"
                   value={withdrawalDraft.purpose}
                   onChange={e => setWithdrawalDraft(prev => ({ ...prev, purpose: e.target.value }))}
                   className="w-full px-3 py-2 text-sm font-semibold text-zinc-900 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900"
-                  placeholder="Transfer, payout, cash draw"
+                  placeholder={withdrawalFund.key === 'utilities' ? 'Electricity bill, internet bill' : withdrawalFund.key === 'labor' ? 'Helper salary, contractor pay' : 'Nozzle replacement, maintenance'}
                 />
               </label>
 
@@ -861,7 +870,7 @@ export default function FinancialReportView() {
             <div className="px-5 py-4 bg-zinc-50 border-t border-zinc-100 flex justify-end gap-2">
               <button type="button" onClick={closeWithdrawalModal} className="px-4 py-2 rounded-lg bg-white border border-zinc-200 text-xs font-bold text-zinc-700 hover:bg-zinc-100 transition-colors">Cancel</button>
               <button type="button" onClick={saveWithdrawal} disabled={withdrawalSaving} className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-xs font-bold hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                {withdrawalSaving ? 'Saving...' : 'Save Withdrawal'}
+                {withdrawalSaving ? 'Saving...' : 'Save Expense'}
               </button>
             </div>
           </div>
