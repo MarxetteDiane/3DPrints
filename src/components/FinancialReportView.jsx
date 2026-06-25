@@ -73,6 +73,7 @@ export default function FinancialReportView() {
     monthlyProfitHistory: [],
     categoryBreakdown: {},
     wastedGramsTotal: 0, wastedCostTotal: 0,
+    laborers: [],
   });
 
   useEffect(() => { fetchFinancialData(); }, []);
@@ -230,6 +231,59 @@ export default function FinancialReportView() {
       restockList.forEach(r => { categoryBreakdown['Filament Restocks'] += Number(r.purchase_cost) || 0; });
       withdrawalList.forEach(w => { categoryBreakdown['Fund Withdrawals'] += Number(w.amount) || 0; });
 
+      // Calculate earnings per worker from all non-cancelled orders
+      const workerEarnings = {};
+      orders.forEach(o => {
+        if (o.status === 'Cancelled') return;
+        const fb = o.financial_breakdown || {};
+        const persisted = fb.editorState || {};
+        const laborsList = persisted.labors || [];
+        
+        if (laborsList.length > 0) {
+          laborsList.forEach(l => {
+            const workerName = (l.worker || 'Unassigned').trim();
+            const earned = (Number(l.hours) || 0) * (Number(l.rate) || 0);
+            if (earned > 0) {
+              workerEarnings[workerName] = (workerEarnings[workerName] || 0) + earned;
+            }
+          });
+        } else {
+          const laborCost = Number(fb.laborCost || 0);
+          if (laborCost > 0) {
+            workerEarnings['Unassigned'] = (workerEarnings['Unassigned'] || 0) + laborCost;
+          }
+        }
+      });
+
+      // Calculate payments per worker (both from withdrawals and legacy labor expenses)
+      const workerPaid = {};
+      withdrawalList.forEach(w => {
+        if (w.fund === 'labor') {
+          const workerName = (w.withdrawn_by || 'Unassigned').trim();
+          const amount = Number(w.amount) || 0;
+          workerPaid[workerName] = (workerPaid[workerName] || 0) + amount;
+        }
+      });
+      expList.forEach(e => {
+        const fund = classifyExpense(e.category);
+        if (fund === 'labor') {
+          const workerName = (e.payer || 'Unassigned').trim();
+          const cost = Number(e.cost) || 0;
+          workerPaid[workerName] = (workerPaid[workerName] || 0) + cost;
+        }
+      });
+
+      // Combine worker earnings and payments to find outstanding balances
+      const allWorkers = Array.from(new Set([
+        ...Object.keys(workerEarnings),
+        ...Object.keys(workerPaid)
+      ])).map(name => {
+        const earned = workerEarnings[name] || 0;
+        const paid = workerPaid[name] || 0;
+        const balance = Math.max(0, earned - paid);
+        return { name, earned, paid, balance };
+      }).filter(w => w.earned > 0 || w.paid > 0);
+
       // ── Wasted prints ─────────────────────────────────────────────────
       let wastedGramsTotal = 0, wastedCostTotal = 0;
       try {
@@ -254,6 +308,7 @@ export default function FinancialReportView() {
         payerBreakdown, recentTransactions, totalExternalExpenses,
         monthlyProfitHistory: months, categoryBreakdown,
         wastedGramsTotal, wastedCostTotal,
+        laborers: allWorkers,
       });
     } catch (err) {
       console.error('Financial data error:', err);
@@ -281,6 +336,7 @@ export default function FinancialReportView() {
     withdrawals_utilities, withdrawals_labor, withdrawals_printer,
     payerBreakdown, recentTransactions, totalExternalExpenses,
     monthlyProfitHistory, categoryBreakdown, wastedGramsTotal, wastedCostTotal,
+    laborers,
   } = reportData;
 
   // Fund balances
@@ -803,8 +859,8 @@ export default function FinancialReportView() {
       </div>
 
       {withdrawalFund && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4">
-          <div className="w-full max-w-md rounded-xl bg-white border border-zinc-200 shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4 animate-in fade-in duration-200">
+          <div className={`w-full ${withdrawalFund.key === 'labor' ? 'max-w-lg' : 'max-w-md'} rounded-xl bg-white border border-zinc-200 shadow-2xl overflow-hidden transition-all duration-300`}>
             <div className="px-5 py-4 border-b border-zinc-100 bg-zinc-50 flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-white border border-zinc-200 flex items-center justify-center">
                 <Wallet className="w-4 h-4 text-zinc-700" />
@@ -819,6 +875,47 @@ export default function FinancialReportView() {
             </div>
 
             <div className="p-5 space-y-4">
+              {withdrawalFund.key === 'labor' && (
+                <div className="border border-zinc-200 rounded-xl overflow-hidden shadow-sm bg-zinc-50/50">
+                  <div className="bg-zinc-100/80 px-4 py-2 border-b border-zinc-200 flex justify-between items-center">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Laborer Outstanding Balances</span>
+                    <span className="text-[9px] text-zinc-400 font-semibold">(Click row to auto-fill)</span>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto divide-y divide-zinc-200 bg-white">
+                    {laborers.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-zinc-400 italic">No labor earnings or payments recorded yet.</div>
+                    ) : (
+                      laborers.map((w) => (
+                        <div
+                          key={w.name}
+                          onClick={() => {
+                            setWithdrawalDraft(prev => ({
+                              ...prev,
+                              amount: String(w.balance),
+                              withdrawnBy: w.name,
+                              purpose: `Labor payout to ${w.name}`,
+                              notes: `Payment for accumulated earnings. Total Earned: PHP ${fmtN(w.earned)}, Already Paid: PHP ${fmtN(w.paid)}`,
+                            }));
+                          }}
+                          className="px-4 py-2.5 flex items-center justify-between hover:bg-zinc-50/80 cursor-pointer transition-colors text-xs"
+                        >
+                          <div>
+                            <span className="font-bold text-zinc-900 block">{w.name}</span>
+                            <span className="text-[9px] text-zinc-400 font-medium">Earned: PHP {fmtN(w.earned)} · Paid: PHP {fmtN(w.paid)}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className={`font-black ${w.balance > 0 ? 'text-indigo-600' : 'text-zinc-400'}`}>
+                              PHP {fmtN(w.balance)}
+                            </span>
+                            <span className="text-[9px] text-zinc-400 block font-bold uppercase tracking-wider">Owed</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="flex flex-col gap-1.5">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Amount</span>
