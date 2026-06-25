@@ -29,10 +29,11 @@ function loadAlloc() {
 // Maps an expense category string to one of our fund buckets
 function classifyExpense(category) {
   const c = (category || '').toLowerCase();
+  if (c.includes('waste')) return 'waste';
   if (['utilities', 'electricity', 'electric', 'internet', 'infrastructure', 'utility', 'power'].some(k => c.includes(k))) return 'utilities';
   if (['material', 'hardware', 'filament', 'supply', 'supplies', 'consumable'].some(k => c.includes(k))) return 'materials';
   if (['labor', 'salary', 'wage', 'contractor', 'worker', 'labour'].some(k => c.includes(k))) return 'labor';
-  if (['printer', 'maintenance', 'repair', 'nozzle', 'hotend', 'ams', 'waste'].some(k => c.includes(k))) return 'printer';
+  if (['printer', 'maintenance', 'repair', 'nozzle', 'hotend', 'ams'].some(k => c.includes(k))) return 'printer';
   return 'other';
 }
 
@@ -148,12 +149,12 @@ export default function FinancialReportView() {
       };
       const pick = (o, key) => isPaid(o) ? Number(o.financial_breakdown?.[key] || 0) : 0;
 
-      const col_materials     = orders.reduce((s, o) => s + pick(o, 'filamentCost'), 0);
-      const col_utilities     = orders.reduce((s, o) => s + pick(o, 'electricityCost'), 0);
+      const col_materials = orders.reduce((s, o) => s + pick(o, 'filamentCost'), 0);
+      const col_utilities = orders.reduce((s, o) => s + pick(o, 'electricityCost'), 0);
       const col_supplementary = orders.reduce((s, o) => s + pick(o, 'supplementaryMatCost'), 0);
-      const col_labor         = orders.reduce((s, o) => s + pick(o, 'laborCost'), 0);
-      const col_machineWear   = orders.reduce((s, o) => s + pick(o, 'wearTearCost'), 0);
-      const col_wasteBuffer   = orders.reduce((s, o) => s + pick(o, 'failureBufferCost'), 0);
+      const col_labor = orders.reduce((s, o) => s + pick(o, 'laborCost'), 0);
+      const col_machineWear = orders.reduce((s, o) => s + pick(o, 'wearTearCost'), 0);
+      const col_wasteBuffer = orders.reduce((s, o) => s + pick(o, 'failureBufferCost'), 0);
 
       const totalProductionCost = col_materials + col_utilities + col_supplementary + col_labor + col_machineWear + col_wasteBuffer;
       const netProfit = revenue - totalProductionCost;
@@ -173,9 +174,12 @@ export default function FinancialReportView() {
         else if (fund === 'materials' && isMaterialsFundPayer(e.payer)) spent_materials_exp += cost;
         else if (fund === 'labor') spent_labor += cost;
         else if (fund === 'printer') spent_printer += cost;
-        else spent_other += cost;
+        else if (fund === 'waste') {
+          // Waste value is not deducted from any fund balance
+        }
+        else if (isMaterialsFundPayer(e.payer)) spent_other += cost;
       });
-      const spent_materials = spent_materials_restocks + spent_materials_exp;
+      const spent_materials = spent_materials_restocks + spent_materials_exp + spent_other;
 
       const withdrawalsByFund = withdrawalList.reduce((acc, w) => {
         acc[w.fund] = (acc[w.fund] || 0) + (Number(w.amount) || 0);
@@ -189,6 +193,7 @@ export default function FinancialReportView() {
       const allExpTx = [
         ...expList.map(e => ({ cost: Number(e.cost), payer: e.payer || 'Unknown', date: e.date, label: e.item_name, type: 'Expense', fund: classifyExpense(e.category) })),
         ...restockList.map(r => ({ cost: Number(r.purchase_cost), payer: r.payer || 'Unknown', date: r.date, label: r.item_label || r.filament_label, type: 'Restock', fund: 'materials' })),
+        ...withdrawalList.map(w => ({ cost: Number(w.amount), payer: w.withdrawn_by || 'Unknown', date: w.date, label: w.purpose || 'Fund Withdrawal', type: 'Withdrawal', fund: w.fund })),
       ];
       const totalExternalExpenses = allExpTx.reduce((s, e) => s + e.cost, 0);
       const payerBreakdown = allExpTx.reduce((acc, e) => { acc[e.payer] = (acc[e.payer] || 0) + e.cost; return acc; }, {});
@@ -208,7 +213,7 @@ export default function FinancialReportView() {
         const total = Number(o.total_price || 0);
         const paid = o.financial_breakdown?.amountPaid !== undefined ? Number(o.financial_breakdown.amountPaid) : (o.status === 'Completed' ? total : 0);
         const fb = o.financial_breakdown || {};
-        const cost = ['filamentCost','electricityCost','supplementaryMatCost','laborCost','wearTearCost','failureBufferCost'].reduce((s, k) => s + Number(fb[k] || 0), 0);
+        const cost = ['filamentCost', 'electricityCost', 'supplementaryMatCost', 'laborCost', 'wearTearCost', 'failureBufferCost'].reduce((s, k) => s + Number(fb[k] || 0), 0);
         m.revenue += paid;
         m.cost += cost;
       });
@@ -231,7 +236,7 @@ export default function FinancialReportView() {
         const { data: fl } = await supabase.from('failed_prints').select('weight_grams, estimated_cost');
         if (fl?.length) {
           wastedGramsTotal = fl.reduce((s, fp) => s + (Number(fp.weight_grams) || 0), 0);
-          wastedCostTotal  = fl.reduce((s, fp) => s + (Number(fp.estimated_cost) || 0), 0);
+          wastedCostTotal = fl.reduce((s, fp) => s + (Number(fp.estimated_cost) || 0), 0);
         } else {
           wastedCostTotal = expList.filter(e => (e.category || '').toLowerCase() === 'waste').reduce((s, e) => s + (Number(e.cost) || 0), 0);
           wastedGramsTotal = wastedCostTotal / 0.7;
@@ -265,8 +270,8 @@ export default function FinancialReportView() {
     );
   }
 
-  const php  = (v) => `PHP ${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const fmtN = (v) =>        Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const php = (v) => `PHP ${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmtN = (v) => Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const {
     revenue, pendingRevenue, orderCount, avgOrderValue,
@@ -281,15 +286,17 @@ export default function FinancialReportView() {
   // Fund balances
   const bal_utilities = col_utilities - spent_utilities - withdrawals_utilities;
   const bal_materials = (col_materials + col_supplementary) - spent_materials;
-  const bal_labor     = col_labor - spent_labor - withdrawals_labor;
-  const bal_printer   = (col_machineWear + col_wasteBuffer) - spent_printer - withdrawals_printer;
+  const bal_labor = col_labor - spent_labor - withdrawals_labor;
+  const bal_printer = (col_machineWear + col_wasteBuffer) - spent_printer - withdrawals_printer;
+
+  const total_on_hand_funds = bal_utilities + bal_materials + bal_labor + bal_printer + netProfit;
 
   // Profit allocations
   const netPos = Math.max(0, netProfit);
-  const alloc_salary      = netPos * (alloc.salary      / 100);
-  const alloc_distribution= netPos * (alloc.distribution/ 100);
-  const alloc_retained    = netPos * (alloc.retained    / 100);
-  const netMargin         = revenue > 0 ? (netProfit / revenue) * 100 : 0;
+  const alloc_salary = netPos * (alloc.salary / 100);
+  const alloc_distribution = netPos * (alloc.distribution / 100);
+  const alloc_retained = netPos * (alloc.retained / 100);
+  const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
 
   const funds = [
     {
@@ -298,8 +305,7 @@ export default function FinancialReportView() {
       balance: bal_utilities, collected: col_utilities, collectLabel: 'Utilities Collected',
       breakdown: [
         { label: 'Utilities Collected', value: col_utilities, positive: true },
-        { label: 'Utilities Paid', value: spent_utilities, positive: false },
-        ...(withdrawals_utilities > 0 ? [{ label: 'Legacy Withdrawals', value: withdrawals_utilities, positive: false }] : []),
+        { label: 'Utilities Paid', value: spent_utilities + withdrawals_utilities, positive: false },
       ],
     },
     {
@@ -318,8 +324,7 @@ export default function FinancialReportView() {
       balance: bal_labor, collected: col_labor, collectLabel: 'Labor Collected',
       breakdown: [
         { label: 'Labor Collected', value: col_labor, positive: true },
-        { label: 'Labor Paid', value: spent_labor, positive: false },
-        ...(withdrawals_labor > 0 ? [{ label: 'Legacy Withdrawals', value: withdrawals_labor, positive: false }] : []),
+        { label: 'Fund Withdrawals', value: spent_labor + withdrawals_labor, positive: false },
       ],
     },
     {
@@ -329,8 +334,7 @@ export default function FinancialReportView() {
       breakdown: [
         { label: 'Machine Wear Collected', value: col_machineWear, positive: true },
         { label: 'Waste Buffer Collected', value: col_wasteBuffer, positive: true },
-        { label: 'Printer Expenses Paid', value: spent_printer, positive: false },
-        ...(withdrawals_printer > 0 ? [{ label: 'Legacy Withdrawals', value: withdrawals_printer, positive: false }] : []),
+        { label: 'Printer Expenses Paid', value: spent_printer + withdrawals_printer, positive: false },
       ],
     },
   ];
@@ -367,13 +371,13 @@ export default function FinancialReportView() {
 
     setWithdrawalSaving(true);
     setWithdrawalError('');
-    // Save as an expense so it shows under the fund's "Paid" line
-    const { error } = await supabase.from(INVENTORY_EXPENSES_TABLE).insert({
+    // Save as a withdrawal to fund_withdrawals table
+    const { error } = await supabase.from(FUND_WITHDRAWALS_TABLE).insert({
       date: withdrawalDraft.date || new Date().toISOString(),
-      item_name: withdrawalDraft.purpose.trim() || withdrawalFund.buttonLabel,
-      category: withdrawalFund.expenseCategory,
-      cost: amount,
-      payer: withdrawalDraft.withdrawnBy.trim() || 'MackyPrint',
+      fund: withdrawalFund.key,
+      amount: amount,
+      withdrawn_by: withdrawalDraft.withdrawnBy.trim() || 'MackyPrint',
+      purpose: withdrawalDraft.purpose.trim() || withdrawalFund.buttonLabel,
       notes: withdrawalDraft.notes.trim(),
     });
 
@@ -400,25 +404,58 @@ export default function FinancialReportView() {
         </button>
       </div>
 
-      {/* ── DASHBOARD SUMMARY STRIP ─────────────────────────────────── */}
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-3">Fund Balances at a Glance</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {[
-            { label: 'Utilities Fund',  value: bal_utilities, color: bal_utilities  >= 0 ? 'text-amber-700'  : 'text-rose-700', bg: bal_utilities  >= 0 ? 'bg-amber-50  border-amber-200'  : 'bg-rose-50 border-rose-200',  icon: <Zap className="w-3 h-3" /> },
-            { label: 'Materials Fund',  value: bal_materials, color: bal_materials  >= 0 ? 'text-indigo-700' : 'text-rose-700', bg: bal_materials  >= 0 ? 'bg-indigo-50 border-indigo-200' : 'bg-rose-50 border-rose-200',  icon: <Package className="w-3 h-3" /> },
-            { label: 'Labor Fund',      value: bal_labor,     color: bal_labor      >= 0 ? 'text-sky-700'    : 'text-rose-700', bg: bal_labor      >= 0 ? 'bg-sky-50    border-sky-200'    : 'bg-rose-50 border-rose-200',  icon: <Wrench className="w-3 h-3" /> },
-            { label: 'Printer Fund',    value: bal_printer,   color: bal_printer    >= 0 ? 'text-orange-700' : 'text-rose-700', bg: bal_printer    >= 0 ? 'bg-orange-50 border-orange-200' : 'bg-rose-50 border-rose-200',  icon: <Printer className="w-3 h-3" /> },
-            { label: 'Net Profit',      value: netProfit,     color: netProfit      >= 0 ? 'text-emerald-700': 'text-rose-700', bg: netProfit      >= 0 ? 'bg-emerald-50 border-emerald-200':'bg-rose-50 border-rose-200', icon: <TrendingUp className="w-3 h-3" /> },
-            { label: 'Retained Earnings',value: alloc_retained,color:'text-zinc-800',                                           bg: 'bg-zinc-50 border-zinc-200',                                                            icon: <Building2 className="w-3 h-3" /> },
-          ].map(({ label, value, color, bg, icon }) => (
-            <div key={label} className={`border rounded-xl p-3.5 flex flex-col gap-1 ${bg}`}>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 flex items-center gap-1">{icon}{label}</span>
-              <span className={`text-sm font-black leading-tight ${color}`}>
-                {value < 0 ? '−' : ''}PHP {fmtN(Math.abs(value))}
-              </span>
+      {/* ── TOTAL ON-HAND FUNDS WIDGET ──────────────────────────────── */}
+      <div className="bg-gradient-to-br from-zinc-900 to-zinc-950 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden p-6 text-white relative">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-zinc-800/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="w-6 h-6 rounded-md bg-zinc-800 border border-zinc-700 flex items-center justify-center">
+                <Wallet className="w-3.5 h-3.5 text-zinc-300" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Total On-Hand Funds</span>
             </div>
-          ))}
+            <h2 className="text-3xl font-black text-white tracking-tight leading-none mb-1">
+              PHP {fmtN(total_on_hand_funds)}
+            </h2>
+            <p className="text-xs text-zinc-400 max-w-md font-medium leading-relaxed">Aggregated capital currently available across all operational funds and net profits.</p>
+          </div>
+
+          <div className="flex-1 max-w-xl w-full">
+            <div className="h-2 w-full bg-zinc-800 rounded-full overflow-hidden flex mb-4 border border-zinc-800/50">
+              {[
+                { value: bal_utilities, color: 'bg-amber-500' },
+                { value: bal_materials, color: 'bg-indigo-500' },
+                { value: bal_labor, color: 'bg-sky-500' },
+                { value: bal_printer, color: 'bg-orange-500' },
+                { value: netProfit, color: 'bg-emerald-500' },
+              ].map((item, idx) => {
+                const pct = total_on_hand_funds > 0 ? (Math.max(0, item.value) / total_on_hand_funds) * 100 : 0;
+                if (pct <= 0) return null;
+                return <div key={idx} className={`h-full ${item.color} transition-all duration-500`} style={{ width: `${pct}%` }} />;
+              })}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              {[
+                { label: 'Utilities', value: bal_utilities, color: 'text-amber-400', dot: 'bg-amber-500', icon: <Zap className="w-2.5 h-2.5" /> },
+                { label: 'Materials', value: bal_materials, color: 'text-indigo-400', dot: 'bg-indigo-500', icon: <Package className="w-2.5 h-2.5" /> },
+                { label: 'Labor', value: bal_labor, color: 'text-sky-400', dot: 'bg-sky-500', icon: <Wrench className="w-2.5 h-2.5" /> },
+                { label: 'Printer', value: bal_printer, color: 'text-orange-400', dot: 'bg-orange-500', icon: <Printer className="w-2.5 h-2.5" /> },
+                { label: 'Net Profit', value: netProfit, color: 'text-emerald-400', dot: 'bg-emerald-500', icon: <TrendingUp className="w-2.5 h-2.5" /> },
+              ].map((fund) => (
+                <div key={fund.label} className="bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-2.5 flex flex-col gap-0.5">
+                  <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                    {fund.icon}
+                    {fund.label}
+                  </span>
+                  <span className={`text-xs font-black ${fund.color} truncate`}>
+                    PHP {fmtN(fund.value)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -507,12 +544,12 @@ export default function FinancialReportView() {
             <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-4">Cost Breakdown</p>
             <div className="space-y-3">
               {[
-                { label: 'Materials (Filament)', value: col_materials,     color: 'bg-indigo-400', icon: <Package className="w-3 h-3 text-white" /> },
-                { label: 'Utilities',            value: col_utilities,     color: 'bg-amber-400',  icon: <Zap className="w-3 h-3 text-white" /> },
-                { label: 'Supplementary',        value: col_supplementary, color: 'bg-teal-400',   icon: <Layers className="w-3 h-3 text-white" /> },
-                { label: 'Labor',                value: col_labor,         color: 'bg-sky-400',    icon: <Wrench className="w-3 h-3 text-white" /> },
-                { label: 'Machine Wear',         value: col_machineWear,   color: 'bg-orange-400', icon: <Printer className="w-3 h-3 text-white" /> },
-                { label: 'Waste Buffer',         value: col_wasteBuffer,   color: 'bg-rose-400',   icon: <FlaskConical className="w-3 h-3 text-white" /> },
+                { label: 'Materials (Filament)', value: col_materials, color: 'bg-indigo-400', icon: <Package className="w-3 h-3 text-white" /> },
+                { label: 'Utilities', value: col_utilities, color: 'bg-amber-400', icon: <Zap className="w-3 h-3 text-white" /> },
+                { label: 'Supplementary', value: col_supplementary, color: 'bg-teal-400', icon: <Layers className="w-3 h-3 text-white" /> },
+                { label: 'Labor', value: col_labor, color: 'bg-sky-400', icon: <Wrench className="w-3 h-3 text-white" /> },
+                { label: 'Machine Wear', value: col_machineWear, color: 'bg-orange-400', icon: <Printer className="w-3 h-3 text-white" /> },
+                { label: 'Waste Buffer', value: col_wasteBuffer, color: 'bg-rose-400', icon: <FlaskConical className="w-3 h-3 text-white" /> },
               ].map(({ label, value, color, icon }) => {
                 const pct = totalProductionCost > 0 ? (value / totalProductionCost) * 100 : 0;
                 return (
@@ -590,9 +627,9 @@ export default function FinancialReportView() {
             <p className="text-xs font-semibold text-zinc-600 mb-4">Set allocation percentages. Total must equal 100%.</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
               {[
-                { key: 'salary',       label: 'Salary',           icon: <Wrench className="w-3.5 h-3.5 text-sky-600" />,     color: 'ring-sky-400' },
-                { key: 'distribution', label: 'Distribution',     icon: <Banknote className="w-3.5 h-3.5 text-emerald-600" />,color: 'ring-emerald-400' },
-                { key: 'retained',     label: 'Retained Earnings',icon: <Building2 className="w-3.5 h-3.5 text-indigo-600" />,color: 'ring-indigo-400' },
+                { key: 'salary', label: 'Salary', icon: <Wrench className="w-3.5 h-3.5 text-sky-600" />, color: 'ring-sky-400' },
+                { key: 'distribution', label: 'Distribution', icon: <Banknote className="w-3.5 h-3.5 text-emerald-600" />, color: 'ring-emerald-400' },
+                { key: 'retained', label: 'Retained Earnings', icon: <Building2 className="w-3.5 h-3.5 text-indigo-600" />, color: 'ring-indigo-400' },
               ].map(({ key, label, icon, color }) => (
                 <div key={key} className="flex flex-col gap-1.5">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-1.5">{icon}{label}</label>
@@ -623,9 +660,9 @@ export default function FinancialReportView() {
           <div className="p-6">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
               {[
-                { label: 'Salary',            pct: alloc.salary,       amount: alloc_salary,       icon: <Wrench className="w-4 h-4 text-sky-600" />,     bg: 'bg-sky-50',     border: 'border-sky-200',     color: 'text-sky-700',     bar: 'bg-sky-400',     sub: 'Owner / worker compensation' },
-                { label: 'Distribution',      pct: alloc.distribution, amount: alloc_distribution, icon: <Banknote className="w-4 h-4 text-emerald-600" />, bg: 'bg-emerald-50', border: 'border-emerald-200', color: 'text-emerald-700', bar: 'bg-emerald-500', sub: 'Owner profit withdrawal' },
-                { label: 'Retained Earnings', pct: alloc.retained,     amount: alloc_retained,     icon: <Building2 className="w-4 h-4 text-indigo-600" />, bg: 'bg-indigo-50',  border: 'border-indigo-200',  color: 'text-indigo-700',  bar: 'bg-indigo-500', sub: 'Reinvested in business' },
+                { label: 'Salary', pct: alloc.salary, amount: alloc_salary, icon: <Wrench className="w-4 h-4 text-sky-600" />, bg: 'bg-sky-50', border: 'border-sky-200', color: 'text-sky-700', bar: 'bg-sky-400', sub: 'Owner / worker compensation' },
+                { label: 'Distribution', pct: alloc.distribution, amount: alloc_distribution, icon: <Banknote className="w-4 h-4 text-emerald-600" />, bg: 'bg-emerald-50', border: 'border-emerald-200', color: 'text-emerald-700', bar: 'bg-emerald-500', sub: 'Owner profit withdrawal' },
+                { label: 'Retained Earnings', pct: alloc.retained, amount: alloc_retained, icon: <Building2 className="w-4 h-4 text-indigo-600" />, bg: 'bg-indigo-50', border: 'border-indigo-200', color: 'text-indigo-700', bar: 'bg-indigo-500', sub: 'Reinvested in business' },
               ].map(({ label, pct, amount, icon, bg, border, color, bar, sub }) => (
                 <div key={label} className={`${bg} border ${border} rounded-xl p-5 flex flex-col gap-2`}>
                   <div className="flex items-center gap-2">
@@ -640,29 +677,6 @@ export default function FinancialReportView() {
                   </div>
                 </div>
               ))}
-            </div>
-
-            {/* Net Profit flow */}
-            <div className="border border-zinc-100 rounded-xl p-4 bg-zinc-50">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-3">Allocation Flow</p>
-              <div className="flex flex-col sm:flex-row items-stretch gap-0">
-                {[
-                  { label: 'Net Profit',        value: netProfit,         sub: 'Starting point',          badge: null,          bg: 'bg-zinc-100',     text: 'text-zinc-900' },
-                  { label: 'Salary',            value: alloc_salary,      sub: `${alloc.salary}%`,        badge: '→ pay',       bg: 'bg-sky-100',      text: 'text-sky-800' },
-                  { label: 'Distribution',      value: alloc_distribution,sub: `${alloc.distribution}%`, badge: '→ withdraw',  bg: 'bg-emerald-100',  text: 'text-emerald-800' },
-                  { label: 'Retained',          value: alloc_retained,    sub: `${alloc.retained}%`,     badge: '→ reinvest',  bg: 'bg-indigo-100',   text: 'text-indigo-800' },
-                ].map((step, i, arr) => (
-                  <div key={step.label} className="flex sm:flex-col flex-row items-center flex-1">
-                    <div className={`flex-1 sm:w-full rounded-xl ${step.bg} px-3 py-2.5 flex flex-col items-center text-center gap-0.5`}>
-                      {step.badge && <span className="text-[8px] font-black text-zinc-400 uppercase tracking-widest">{step.badge}</span>}
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">{step.label}</span>
-                      <span className={`text-base font-black ${step.text}`}>PHP {fmtN(Math.abs(step.value))}</span>
-                      <span className="text-[9px] text-zinc-400">{step.sub}</span>
-                    </div>
-                    {i < arr.length - 1 && <ChevronRight className="w-3.5 h-3.5 text-zinc-300 shrink-0 mx-1 sm:rotate-90 sm:my-1" />}
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         )}
@@ -761,7 +775,7 @@ export default function FinancialReportView() {
               </thead>
               <tbody className="divide-y divide-zinc-50">
                 {recentTransactions.map((tx, i) => {
-                  const fundColors = { utilities: 'bg-amber-100 text-amber-700', materials: 'bg-indigo-100 text-indigo-700', labor: 'bg-sky-100 text-sky-700', printer: 'bg-orange-100 text-orange-700', other: 'bg-zinc-100 text-zinc-600' };
+                  const fundColors = { utilities: 'bg-amber-100 text-amber-700', materials: 'bg-indigo-100 text-indigo-700', labor: 'bg-sky-100 text-sky-700', printer: 'bg-orange-100 text-orange-700', waste: 'bg-rose-100 text-rose-700', other: 'bg-zinc-100 text-zinc-600' };
                   const fc = fundColors[tx.fund] || fundColors.other;
                   return (
                     <tr key={i} className="hover:bg-zinc-50/50 transition-colors">
