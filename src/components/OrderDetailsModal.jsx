@@ -1019,6 +1019,20 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                       <input value={editorState.itemName} onChange={(e) => updateEditorField('itemName', e.target.value)} className={fieldClass} />
                     </div>
 
+                    {editorState.orderItems?.length > 0 && (
+                      <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-3">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-2">Predefined Catalog Items</p>
+                        <div className="space-y-1.5">
+                          {editorState.orderItems.map((oi, idx) => (
+                            <div key={oi.id || idx} className="flex justify-between text-xs">
+                              <span className="text-zinc-700"><span className="font-bold">{oi.quantity}x</span> {oi.productName} <span className="text-zinc-400">({oi.variantName})</span></span>
+                              <span className="font-bold text-zinc-900">₱{(oi.fixedStandardPrice * oi.quantity).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Pricing Mode Selection */}
                     <div className="border-t border-zinc-100 pt-4">
                       <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Pricing Mode</label>
@@ -1129,19 +1143,21 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                       </div>
                     </div>
 
-                    {/* Gallery Inclusion Switch */}
-                    <div className="border-t border-zinc-100 pt-4 flex items-center gap-2.5">
-                      <input
-                        type="checkbox"
-                        id="modal-addToGallery"
-                        checked={editorState.addToGallery !== false}
-                        onChange={(e) => updateEditorField('addToGallery', e.target.checked)}
-                        className="w-4 h-4 rounded text-zinc-900 border-zinc-300 focus:ring-zinc-900 focus:ring-opacity-50 accent-zinc-900 cursor-pointer"
-                      />
-                      <label htmlFor="modal-addToGallery" className="text-xs font-bold text-zinc-700 cursor-pointer select-none">
-                        Add this product to the Product Gallery
-                      </label>
-                    </div>
+                    {/* Gallery Inclusion Switch – only for custom prints */}
+                    {editorState.entryType !== 'catalog' && (
+                      <div className="border-t border-zinc-100 pt-4 flex items-center gap-2.5">
+                        <input
+                          type="checkbox"
+                          id="modal-addToGallery"
+                          checked={editorState.addToGallery !== false}
+                          onChange={(e) => updateEditorField('addToGallery', e.target.checked)}
+                          className="w-4 h-4 rounded text-zinc-900 border-zinc-300 focus:ring-zinc-900 focus:ring-opacity-50 accent-zinc-900 cursor-pointer"
+                        />
+                        <label htmlFor="modal-addToGallery" className="text-xs font-bold text-zinc-700 cursor-pointer select-none">
+                          Add this product to the Product Gallery
+                        </label>
+                      </div>
+                    )}
 
                   </div>
                 </section>
@@ -1657,6 +1673,34 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                   <div className="space-y-3">
                     <div><p className="text-xs text-zinc-500 mb-1">Item Title</p><p className="font-medium text-zinc-900 text-base">{item.name || 'Unnamed Asset'}</p></div>
                     <div><p className="text-xs text-zinc-500 mb-1">Quantity</p><p className="font-semibold text-zinc-900 text-sm">{item.number_of_plates} Plates</p></div>
+
+                    {data.financial_breakdown?.editorState?.orderItems?.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-zinc-100">
+                        <p className="text-xs text-zinc-500 mb-2 font-semibold uppercase tracking-wider">Order Line Items</p>
+                        <div className="border border-zinc-200 rounded-lg overflow-hidden">
+                          <div className="px-3 py-1.5 bg-zinc-50 border-b border-zinc-200 grid grid-cols-12 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                            <span className="col-span-1 text-center">Qty</span>
+                            <span className="col-span-5">Product</span>
+                            <span className="col-span-3">Variant</span>
+                            <span className="col-span-3 text-right">Subtotal</span>
+                          </div>
+                          <div className="divide-y divide-zinc-100 bg-white">
+                            {data.financial_breakdown.editorState.orderItems.map((oi, idx) => (
+                              <div key={oi.id || idx} className="px-3 py-2 grid grid-cols-12 items-center text-xs">
+                                <span className="col-span-1 text-center font-bold text-zinc-700">{oi.quantity}x</span>
+                                <span className="col-span-5 font-medium text-zinc-800 truncate">{oi.productName}</span>
+                                <span className="col-span-3 text-zinc-500 truncate">{oi.variantName}</span>
+                                <span className="col-span-3 text-right font-bold text-zinc-900">₱{(oi.fixedStandardPrice * oi.quantity).toFixed(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="px-3 py-2 bg-zinc-50 border-t border-zinc-200 flex justify-between text-xs font-bold text-zinc-900">
+                            <span>Total ({data.financial_breakdown.editorState.orderItems.reduce((s, oi) => s + oi.quantity, 0)} items)</span>
+                            <span>₱{data.financial_breakdown.editorState.orderItems.reduce((s, oi) => s + (oi.fixedStandardPrice * oi.quantity), 0).toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

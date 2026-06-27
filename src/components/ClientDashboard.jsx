@@ -6,8 +6,9 @@ import CompletedOrdersView from './CompletedOrdersView';
 import InventoryView from './InventoryView';
 import FinancialReportView from './FinancialReportView';
 import ProductGalleryView from './ProductGalleryView';
+import ProductsView from './ProductsView';
 import { supabase } from '../supabaseClient';
-import { ChevronRight, Search, Menu, Settings, Box, Factory, LogOut, Archive, Package, BarChart3, Image } from 'lucide-react';
+import { ChevronRight, Search, Menu, Settings, Box, Factory, LogOut, Archive, Package, BarChart3, Image, Tag } from 'lucide-react';
 
 const DEFAULT_SYSTEM_CONFIG = {
   baseCostRate: 14.16,
@@ -63,7 +64,10 @@ function mapConfigStateToRow(config) {
 export default function ClientDashboard() {
   const [selectedClient, setSelectedClient] = useState('MackyPrint');
   const [selectedOrder, setSelectedOrder] = useState('ORD-2024-089');
-  const [activeTab, setActiveTab] = useState('Calculator');
+  const [activeTab, setActiveTab] = useState(() => {
+    const hash = window.location.hash.replace('#', '');
+    return hash || 'Calculator';
+  });
   const [configLoading, setConfigLoading] = useState(true);
   const [configSaving, setConfigSaving] = useState(false);
 
@@ -76,6 +80,10 @@ export default function ClientDashboard() {
   useEffect(() => {
     localStorage.setItem('mackyPrintConfig', JSON.stringify(systemConfig));
   }, [systemConfig]);
+
+  useEffect(() => {
+    window.location.hash = activeTab;
+  }, [activeTab]);
 
   useEffect(() => {
     let cancelled = false;
@@ -190,11 +198,11 @@ export default function ClientDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveTab('Gallery')}
-            className={`w-full flex items-center px-2 sm:px-3 py-2 rounded transition-colors group ${activeTab === 'Gallery' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'}`}
+            onClick={() => setActiveTab('Products')}
+            className={`w-full flex items-center px-2 sm:px-3 py-2 rounded transition-colors group ${activeTab === 'Products' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'}`}
           >
-            <Image className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
-            <span className="ml-3 font-medium text-sm hidden sm:block">Recipe Gallery</span>
+            <Tag className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
+            <span className="ml-3 font-medium text-sm hidden sm:block">Product Catalog</span>
           </button>
 
           <button
@@ -203,6 +211,14 @@ export default function ClientDashboard() {
           >
             <Package className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
             <span className="ml-3 font-medium text-sm hidden sm:block">Inventory</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('Gallery')}
+            className={`w-full flex items-center px-2 sm:px-3 py-2 rounded transition-colors group ${activeTab === 'Gallery' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'}`}
+          >
+            <Image className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
+            <span className="ml-3 font-medium text-sm hidden sm:block">Recipe Gallery</span>
           </button>
 
           <button
@@ -233,6 +249,7 @@ export default function ClientDashboard() {
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-zinc-200 h-16 flex items-center justify-around px-2 z-50 shadow-lg">
         <MobileTabButton active={activeTab === 'Dashboard'} onClick={() => setActiveTab('Dashboard')} icon={Box} label="Dash" />
         <MobileTabButton active={activeTab === 'Calculator'} onClick={() => setActiveTab('Calculator')} icon={Calculator} label="Price" />
+        <MobileTabButton active={activeTab === 'Products'} onClick={() => setActiveTab('Products')} icon={Tag} label="Catalog" />
         <MobileTabButton active={activeTab === 'Gallery'} onClick={() => setActiveTab('Gallery')} icon={Image} label="Gallery" />
         <MobileTabButton active={activeTab === 'Inventory'} onClick={() => setActiveTab('Inventory')} icon={Package} label="Stock" />
         <MobileTabButton active={activeTab === 'Financials'} onClick={() => setActiveTab('Financials')} icon={BarChart3} label="Money" />
@@ -323,6 +340,8 @@ export default function ClientDashboard() {
                 }}
               />
             )}
+
+            {activeTab === 'Products' && <ProductsView />}
 
             {activeTab === 'Inventory' && <InventoryView />}
 

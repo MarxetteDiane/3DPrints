@@ -2,8 +2,9 @@ import { useEffect, useReducer, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
 import { adjustInventoryStock, fetchInventoryFilaments, fetchInventoryMaterials } from '../lib/inventory';
+import { fetchProducts } from '../lib/products';
 import {
-  Calculator, Plus, Trash2, Box, Zap, Clock, Coins, Wrench, CheckCircle2, Paintbrush, Shield, User, Layers
+  Calculator, Plus, Trash2, Box, Zap, Clock, Coins, Wrench, CheckCircle2, Paintbrush, Shield, User, Layers, Tag
 } from 'lucide-react';
 
 const initialState = {
@@ -67,6 +68,9 @@ function formReducer(state, action) {
         fixedQuantity: action.template.fixedQuantity !== undefined ? Number(action.template.fixedQuantity) : 1,
         addToGallery: action.template.addToGallery !== false,
       };
+
+    case 'RESET_FORM':
+      return init(action.config);
 
     case 'ADD_PLATE':
       return {
@@ -211,6 +215,10 @@ export default function AdvancedPriceChecker({ config }) {
       const template = e.detail;
       if (template) {
         dispatch({ type: 'LOAD_TEMPLATE', template });
+        setSelectedProductId('');
+        setSelectedVariantId('');
+        setEntryType('custom');
+        setOrderItems([]);
 
         // Pre-fill custom final price if overridden
         if (template.customFinalPrice !== undefined) {
@@ -236,12 +244,18 @@ export default function AdvancedPriceChecker({ config }) {
     assembly: false
   });
   const [customFinalPrice, setCustomFinalPrice] = useState('');
+  const [entryType, setEntryType] = useState('catalog'); // 'catalog' or 'custom'
+  const [orderItems, setOrderItems] = useState([]);
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [selectedVariantId, setSelectedVariantId] = useState('');
+  const [selectedQty, setSelectedQty] = useState(1);
 
   // STL States removed in favor of direct Image URL input
 
-  // Read inventory filaments from localStorage (kept in sync with InventoryView)
+  // Read inventory filaments and products
   const [inventoryFilaments, setInventoryFilaments] = useState([]);
   const [inventoryMaterials, setInventoryMaterials] = useState([]);
+  const [products, setProducts] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -249,16 +263,80 @@ export default function AdvancedPriceChecker({ config }) {
     Promise.all([
       fetchInventoryFilaments().catch(() => []),
       fetchInventoryMaterials().catch(() => []),
-    ]).then(([filamentsData, materialsData]) => {
+      fetchProducts().catch(() => []),
+    ]).then(([filamentsData, materialsData, productsData]) => {
       if (cancelled) return;
       setInventoryFilaments(filamentsData);
       setInventoryMaterials(materialsData);
+      setProducts(productsData);
     });
 
     return () => {
       cancelled = true;
     };
   }, []);
+
+  // Sync predefined order items with the pricing engine form state
+  useEffect(() => {
+    if (entryType === 'catalog') {
+      if (orderItems.length === 0) {
+        // Clear calculations and reset to initial default placeholders
+        dispatch({ type: 'UPDATE_FIELD', field: 'itemName', value: '' });
+        dispatch({ type: 'UPDATE_FIELD', field: 'fixedStandardPrice', value: 0 });
+        dispatch({ type: 'UPDATE_FIELD', field: 'fixedFamilyPrice', value: 0 });
+        dispatch({ type: 'UPDATE_FIELD', field: 'plates', value: init(config).plates });
+        dispatch({ type: 'UPDATE_FIELD', field: 'labors', value: init(config).labors });
+        return;
+      }
+
+      // Generate item name: single product uses full name, multiple uses "(N) Items"
+      const totalQuantity = orderItems.reduce((sum, item) => sum + item.quantity, 0);
+      const combinedItemName = orderItems.length === 1
+        ? `${orderItems[0].quantity}x ${orderItems[0].productName} (${orderItems[0].variantName})`
+        : `${totalQuantity} Items`;
+
+      dispatch({ type: 'UPDATE_FIELD', field: 'itemName', value: combinedItemName });
+
+      // Sum fixed standard and family prices
+      const fixedStandardPrice = orderItems.reduce((sum, item) => sum + (item.fixedStandardPrice * item.quantity), 0);
+      const fixedFamilyPrice = orderItems.reduce((sum, item) => sum + (item.fixedFamilyPrice * item.quantity), 0);
+      dispatch({ type: 'UPDATE_FIELD', field: 'fixedStandardPrice', value: fixedStandardPrice });
+      dispatch({ type: 'UPDATE_FIELD', field: 'fixedFamilyPrice', value: fixedFamilyPrice });
+      dispatch({ type: 'UPDATE_FIELD', field: 'pricingMode', value: 'fixed' });
+
+      // Generate separate plates dynamically for each variant (scaled by quantity)
+      const plates = orderItems.map((item) => {
+        const totalHours = item.printTimeHours * item.quantity;
+        const printTimeHours = Math.floor(totalHours);
+        const printTimeMinutes = Math.round((totalHours % 1) * 60);
+
+        return {
+          id: item.id,
+          printTimeHours,
+          printTimeMinutes,
+          filamentChangeCount: 0,
+          filaments: [{
+            id: item.id + 1,
+            weight: item.weightGrams * item.quantity,
+            costPerKg: 700
+          }]
+        };
+      });
+
+      // Sum and generate labor list
+      const totalLaborHours = orderItems.reduce((sum, item) => sum + (item.laborHours * item.quantity), 0);
+      const labors = [{
+        id: Date.now() + 20,
+        type: '3D Modeling & Printing',
+        hours: totalLaborHours,
+        rate: config?.hourlyLaborRate || 250,
+        worker: ''
+      }];
+
+      dispatch({ type: 'UPDATE_FIELD', field: 'plates', value: plates });
+      dispatch({ type: 'UPDATE_FIELD', field: 'labors', value: labors });
+    }
+  }, [orderItems, entryType]);
 
   // handleStlUpload removed
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -440,6 +518,8 @@ export default function AdvancedPriceChecker({ config }) {
         packagingCost: state.packagingCost,
         shippingCost: state.shippingCost,
         miscellaneousCost: state.miscellaneousCost,
+        entryType: entryType,
+        orderItems: entryType === 'catalog' ? orderItems : [],
       };
 
       const financial_breakdown = {
@@ -561,88 +641,323 @@ export default function AdvancedPriceChecker({ config }) {
 
         {/* Section: Object Info */}
         <section className="bg-white border border-zinc-200 shadow-sm rounded-lg overflow-hidden">
-          <div className="px-5 py-4 border-b border-zinc-200">
+          <div className="px-5 py-4 border-b border-zinc-200 flex items-center justify-between bg-zinc-50/50 flex-wrap gap-2">
             <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-widest">1. Object Specification</h2>
+            {/* Segmented Control */}
+            <div className="flex bg-zinc-200/60 p-0.5 rounded-lg border border-zinc-200 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => {
+                  setEntryType('catalog');
+                  dispatch({ type: 'UPDATE_FIELD', field: 'pricingMode', value: 'fixed' });
+                }}
+                className={`px-3 py-1 rounded-md transition-all ${entryType === 'catalog' ? 'bg-white text-zinc-900 shadow-xs' : 'text-zinc-500 hover:text-zinc-900'}`}
+              >
+                Predefined Catalog
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEntryType('custom');
+                  setOrderItems([]);
+                }}
+                className={`px-3 py-1 rounded-md transition-all ${entryType === 'custom' ? 'bg-white text-zinc-900 shadow-xs' : 'text-zinc-500 hover:text-zinc-900'}`}
+              >
+                Custom Print
+              </button>
+            </div>
           </div>
+
           <div className="p-5 space-y-5">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Item Name</label>
-              <input
-                type="text" name="itemName" value={state.itemName} onChange={handleText}
-                placeholder="e.g., Mechanical Keyboard Chassis"
-                className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-medium"
-              />
-            </div>
+            {entryType === 'catalog' ? (
+              /* Predefined Order Form */
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-zinc-50 p-4 border border-zinc-200 rounded-xl items-end">
+                  <div className="md:col-span-4">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5 flex items-center gap-1">
+                      <Tag className="w-3.5 h-3.5 text-zinc-400" /> Predefined Product
+                    </label>
+                    <select
+                      value={selectedProductId}
+                      onChange={(e) => {
+                        setSelectedProductId(e.target.value);
+                        setSelectedVariantId('');
+                      }}
+                      className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm text-zinc-900 font-medium focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                    >
+                      <option value="">-- Choose Product --</option>
+                      {products.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
 
-            {/* Pricing Mode Selection */}
-            <div className="border-t border-zinc-100 pt-4">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Pricing Mode</label>
-              <div className="flex gap-2 p-1 bg-zinc-100 rounded-lg max-w-sm mb-4">
-                <button
-                  type="button"
-                  onClick={() => dispatch({ type: 'UPDATE_FIELD', field: 'pricingMode', value: 'dynamic' })}
-                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md transition-all ${state.pricingMode === 'dynamic' || !state.pricingMode
-                    ? 'bg-white text-zinc-900 shadow-sm'
-                    : 'text-zinc-500 hover:text-zinc-950'
-                    }`}
-                >
-                  📊 Calculated Estimate
-                </button>
-                <button
-                  type="button"
-                  onClick={() => dispatch({ type: 'UPDATE_FIELD', field: 'pricingMode', value: 'fixed' })}
-                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md transition-all ${state.pricingMode === 'fixed'
-                    ? 'bg-white text-zinc-900 shadow-sm'
-                    : 'text-zinc-500 hover:text-zinc-950'
-                    }`}
-                >
-                  🏷️ Fixed Catalog Price
-                </button>
-              </div>
+                  <div className="md:col-span-4">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      Select Variant
+                    </label>
+                    <select
+                      value={selectedVariantId}
+                      disabled={!selectedProductId}
+                      onChange={(e) => setSelectedVariantId(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm text-zinc-900 font-medium disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                    >
+                      <option value="">-- Choose Variant --</option>
+                      {selectedProductId && products.find(p => p.id === selectedProductId)?.variants.map(v => (
+                        <option key={v.id} value={v.id}>
+                          {v.name} - PHP {v.fixedStandardPrice}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              {state.pricingMode === 'fixed' && (
-                <div className="grid grid-cols-3 gap-4 bg-zinc-50 border border-zinc-200/60 rounded-xl p-4 animate-in slide-in-from-top-1 duration-200">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Quantity</label>
+                  <div className="md:col-span-2">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      Qty
+                    </label>
                     <input
                       type="number"
-                      name="fixedQuantity"
-                      value={state.fixedQuantity === 0 ? '' : state.fixedQuantity}
-                      onChange={handleNum}
-                      placeholder="e.g., 1"
-                      className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-bold"
+                      min="1"
+                      value={selectedQty}
+                      onChange={(e) => setSelectedQty(Math.max(1, Number(e.target.value)))}
+                      className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm text-center text-zinc-900 font-bold focus:outline-none focus:ring-1 focus:ring-zinc-900"
                     />
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Fixed Standard (PHP)</label>
-                    <input
-                      type="number"
-                      name="fixedStandardPrice"
-                      value={state.fixedStandardPrice === 0 ? '' : state.fixedStandardPrice}
-                      onChange={handleNum}
-                      placeholder="e.g., 500"
-                      className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-bold"
-                    />
+
+                  <div className="md:col-span-2">
+                    <button
+                      type="button"
+                      disabled={!selectedProductId || !selectedVariantId}
+                      onClick={() => {
+                        const product = products.find(p => p.id === selectedProductId);
+                        if (product) {
+                          const variant = product.variants.find(v => v.id === selectedVariantId);
+                          if (variant) {
+                            const existingIndex = orderItems.findIndex(
+                              item => item.productId === product.id && item.variantId === variant.id
+                            );
+
+                            if (existingIndex > -1) {
+                              const updated = [...orderItems];
+                              updated[existingIndex].quantity += selectedQty;
+                              setOrderItems(updated);
+                            } else {
+                              setOrderItems([
+                                ...orderItems,
+                                {
+                                  id: Date.now(),
+                                  productId: product.id,
+                                  productName: product.name,
+                                  variantId: variant.id,
+                                  variantName: variant.name,
+                                  fixedStandardPrice: variant.fixedStandardPrice,
+                                  fixedFamilyPrice: variant.fixedFamilyPrice,
+                                  weightGrams: variant.weightGrams,
+                                  printTimeHours: variant.printTimeHours,
+                                  laborHours: variant.laborHours,
+                                  quantity: selectedQty
+                                }
+                              ]);
+                            }
+
+                            if (product.imageUrl && !state.imageUrl) {
+                              dispatch({ type: 'UPDATE_FIELD', field: 'imageUrl', value: product.imageUrl });
+                            }
+
+                            setSelectedProductId('');
+                            setSelectedVariantId('');
+                            setSelectedQty(1);
+                          }
+                        }
+                      }}
+                      className="w-full bg-zinc-900 hover:bg-black text-white text-xs font-semibold py-2 px-3 rounded-lg transition-colors flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm h-[38px]"
+                    >
+                      <Plus className="w-3.5 h-3.5 shrink-0" /> Add to Order
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Fixed Family (PHP)</label>
-                    <input
-                      type="number"
-                      name="fixedFamilyPrice"
-                      value={state.fixedFamilyPrice === 0 ? '' : state.fixedFamilyPrice}
-                      onChange={handleNum}
-                      placeholder="e.g., 350"
-                      className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-bold"
-                    />
-                  </div>
-                  <p className="col-span-3 text-[10px] text-zinc-400 font-medium italic mt-1 leading-normal">
-                    * Internal production costs (materials, labor, wear & tear) will still be tracked for exact margin reporting, but standard and family tier billable totals are locked to these pre-sets.
-                  </p>
                 </div>
-              )}
-            </div>
+
+                <div className="border border-zinc-200 rounded-xl overflow-hidden bg-white shadow-xs">
+                  <div className="px-4 py-2 bg-zinc-50 border-b border-zinc-200 flex justify-between text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                    <span>Order Items</span>
+                    <span>Subtotal</span>
+                  </div>
+
+                  {orderItems.length === 0 ? (
+                    <div className="p-8 text-center text-zinc-400 text-xs font-medium">
+                      No catalog items added to this order.
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-zinc-100">
+                      {orderItems.map((item) => (
+                        <div key={item.id} className="p-3.5 flex items-center justify-between gap-4 text-xs hover:bg-zinc-50/50 transition-colors">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="flex items-center border border-zinc-200 rounded-lg overflow-hidden shrink-0 bg-zinc-50">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (item.quantity > 1) {
+                                    setOrderItems(orderItems.map(oi => oi.id === item.id ? { ...oi, quantity: oi.quantity - 1 } : oi));
+                                  } else {
+                                    setOrderItems(orderItems.filter(oi => oi.id !== item.id));
+                                  }
+                                }}
+                                className="px-2 py-0.5 text-xs hover:bg-zinc-200 text-zinc-600 transition-colors font-bold"
+                              >
+                                -
+                              </button>
+                              <span className="px-2 py-0.5 text-xs font-bold text-zinc-900 bg-white min-w-[20px] text-center">
+                                {item.quantity}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOrderItems(orderItems.map(oi => oi.id === item.id ? { ...oi, quantity: oi.quantity + 1 } : oi));
+                                }}
+                                className="px-2 py-0.5 text-xs hover:bg-zinc-200 text-zinc-600 transition-colors font-bold"
+                              >
+                                +
+                              </button>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-bold text-zinc-800 truncate">{item.productName}</div>
+                              <div className="text-[10px] text-zinc-500 font-medium">Variant: {item.variantName} (PHP {item.fixedStandardPrice} each)</div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0 pl-2">
+                            <span className="font-bold text-zinc-950 text-right min-w-[80px]">
+                              PHP {(item.fixedStandardPrice * item.quantity).toFixed(2)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setOrderItems(orderItems.filter(oi => oi.id !== item.id))}
+                              className="p-1 hover:bg-red-50 text-zinc-400 hover:text-red-600 rounded transition-colors"
+                              title="Remove item"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Summary breakdown inside Section 1 */}
+                      <div className="p-4 bg-zinc-50/50 flex flex-col gap-2 text-xs font-medium text-zinc-500 border-t border-zinc-200">
+                        <div className="flex justify-between text-sm font-bold text-zinc-900 pt-1">
+                          <span>Standard Order Total:</span>
+                          <span className="text-zinc-900">
+                            PHP {orderItems.reduce((sum, item) => sum + (item.fixedStandardPrice * item.quantity), 0).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs font-semibold text-emerald-800">
+                          <span>Family Discount Total:</span>
+                          <span>
+                            PHP {orderItems.reduce((sum, item) => sum + (item.fixedFamilyPrice * item.quantity), 0).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('Are you sure you want to clear this entire order?')) {
+                        setOrderItems([]);
+                        dispatch({ type: 'RESET_FORM', config });
+                      }
+                    }}
+                    className="border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-600 text-xs font-semibold py-2 px-4 rounded-lg transition-colors"
+                  >
+                    Clear Order Sheet
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Custom Print manual spec */
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Item Name</label>
+                  <input
+                    type="text" name="itemName" value={state.itemName} onChange={handleText}
+                    placeholder="e.g., Mechanical Keyboard Chassis"
+                    className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-md focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-medium"
+                  />
+                </div>
+
+                <div className="border-t border-zinc-100 pt-4">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Pricing Mode</label>
+                  <div className="flex gap-2 p-1 bg-zinc-100 rounded-lg max-w-sm mb-4">
+                    <button
+                      type="button"
+                      onClick={() => dispatch({ type: 'UPDATE_FIELD', field: 'pricingMode', value: 'dynamic' })}
+                      className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md transition-all ${state.pricingMode === 'dynamic' || !state.pricingMode
+                        ? 'bg-white text-zinc-950 shadow-sm'
+                        : 'text-zinc-500 hover:text-zinc-950'
+                        }`}
+                    >
+                      📊 Calculated Estimate
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => dispatch({ type: 'UPDATE_FIELD', field: 'pricingMode', value: 'fixed' })}
+                      className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md transition-all ${state.pricingMode === 'fixed'
+                        ? 'bg-white text-zinc-950 shadow-sm'
+                        : 'text-zinc-500 hover:text-zinc-950'
+                        }`}
+                    >
+                      🏷️ Fixed Catalog Price
+                    </button>
+                  </div>
+
+                  {state.pricingMode === 'fixed' && (
+                    <div className="grid grid-cols-3 gap-4 bg-zinc-50 border border-zinc-200/60 rounded-xl p-4 animate-in slide-in-from-top-1 duration-200">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Quantity</label>
+                        <input
+                          type="number"
+                          name="fixedQuantity"
+                          value={state.fixedQuantity === 0 ? '' : state.fixedQuantity}
+                          onChange={handleNum}
+                          placeholder="e.g., 1"
+                          className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Fixed Standard (PHP)</label>
+                        <input
+                          type="number"
+                          name="fixedStandardPrice"
+                          value={state.fixedStandardPrice === 0 ? '' : state.fixedStandardPrice}
+                          onChange={handleNum}
+                          placeholder="e.g., 500"
+                          className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-bold text-zinc-800"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">Fixed Family (PHP)</label>
+                        <input
+                          type="number"
+                          name="fixedFamilyPrice"
+                          value={state.fixedFamilyPrice === 0 ? '' : state.fixedFamilyPrice}
+                          onChange={handleNum}
+                          placeholder="e.g., 350"
+                          className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-colors text-sm text-zinc-900 font-bold"
+                        />
+                      </div>
+                      <p className="col-span-3 text-[10px] text-zinc-400 font-medium italic mt-1 leading-normal">
+                        * Internal production costs (materials, labor, wear & tear) will still be tracked for exact margin reporting, but standard and family tier billable totals are locked to these pre-sets.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Track 1: Product Photo / Image URL Zone */}
+            {/* 
             <div className="border-t border-zinc-100 pt-4">
               <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">
                 Product Photo
@@ -700,20 +1015,23 @@ export default function AdvancedPriceChecker({ config }) {
                 </div>
               </div>
             </div>
+            */}
 
-            {/* Gallery Inclusion Switch */}
-            <div className="border-t border-zinc-100 pt-4 flex items-center gap-2.5">
-              <input
-                type="checkbox"
-                id="addToGallery"
-                checked={state.addToGallery !== false}
-                onChange={(e) => dispatch({ type: 'UPDATE_FIELD', field: 'addToGallery', value: e.target.checked })}
-                className="w-4 h-4 rounded text-zinc-900 border-zinc-300 focus:ring-zinc-900 focus:ring-opacity-50 accent-zinc-900 cursor-pointer"
-              />
-              <label htmlFor="addToGallery" className="text-xs font-bold text-zinc-700 cursor-pointer select-none">
-                Add this product to the Product Gallery
-              </label>
-            </div>
+            {/* Gallery Inclusion Switch – only for custom prints */}
+            {entryType !== 'catalog' && (
+              <div className="border-t border-zinc-100 pt-4 flex items-center gap-2.5">
+                <input
+                  type="checkbox"
+                  id="addToGallery"
+                  checked={state.addToGallery !== true}
+                  onChange={(e) => dispatch({ type: 'UPDATE_FIELD', field: 'addToGallery', value: e.target.checked })}
+                  className="w-4 h-4 rounded text-zinc-900 border-zinc-300 focus:ring-zinc-900 focus:ring-opacity-50 accent-zinc-900 cursor-pointer"
+                />
+                <label htmlFor="addToGallery" className="text-xs font-bold text-zinc-700 cursor-pointer select-none">
+                  Add this product to the Product Gallery
+                </label>
+              </div>
+            )}
 
           </div>
         </section>
