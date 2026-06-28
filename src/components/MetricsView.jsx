@@ -698,8 +698,8 @@ function ReportFailureModal({ orderId, onClose }) {
               <div className="relative">
                 <input
                   type="number"
-                  min="1"
-                  step="0.1"
+                  min="0.001"
+                  step="any"
                   placeholder="grams"
                   value={wastedGrams}
                   onChange={e => setWastedGrams(e.target.value)}
