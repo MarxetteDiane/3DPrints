@@ -26,6 +26,17 @@ function formatMoney(value) {
   });
 }
 
+function areOrderItemsEqual(a, b) {
+  if (!a || !b) return a === b;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].id !== b[i].id || a[i].quantity !== b[i].quantity) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export default function PricingCalculator({
   state,
   onChange,
@@ -41,6 +52,7 @@ export default function PricingCalculator({
   const [selectedVariantId, setSelectedVariantId] = useState('');
   const [selectedQty, setSelectedQty] = useState(1);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const prevOrderItemsRef = React.useRef(state?.orderItems || []);
 
   const updateField = (field, value) => {
     onChange((current) => ({ ...current, [field]: value }));
@@ -277,6 +289,14 @@ export default function PricingCalculator({
   // Sync catalog order items
   useEffect(() => {
     if (entryType === 'catalog') {
+      const prev = prevOrderItemsRef.current;
+      prevOrderItemsRef.current = orderItems;
+
+      // If orderItems haven't changed (e.g. initial mount or only plates/labors were edited), do not reset
+      if (areOrderItemsEqual(prev, orderItems) && state.plates?.length > 0) {
+        return;
+      }
+
       if (orderItems.length === 0) {
         onChange((current) => ({
           ...current,
@@ -333,8 +353,10 @@ export default function PricingCalculator({
         plates,
         labors
       }));
+    } else {
+      prevOrderItemsRef.current = orderItems;
     }
-  }, [orderItems, entryType]);
+  }, [orderItems, entryType, config, onChange, state.plates]);
 
   const uFilamentUsage = buildInventoryUsageMap(state);
   const uMaterialUsage = buildMaterialUsageMap(state);
