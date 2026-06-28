@@ -548,7 +548,7 @@ export default function PricingCalculator({
                           <th className="p-3 w-10"></th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-zinc-150">
+                      <tbody className="divide-y divide-zinc-200">
                         {orderItems.map((item) => (
                           <tr key={item.id} className="hover:bg-zinc-50/50 transition-colors">
                             <td className="p-3 pl-4 font-semibold text-zinc-800">
