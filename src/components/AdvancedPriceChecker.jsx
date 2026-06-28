@@ -520,6 +520,7 @@ export default function AdvancedPriceChecker({ config }) {
         miscellaneousCost: state.miscellaneousCost,
         entryType: entryType,
         orderItems: entryType === 'catalog' ? orderItems : [],
+        isFamilyPricing: state.isFamilyPricing,
       };
 
       const financial_breakdown = {

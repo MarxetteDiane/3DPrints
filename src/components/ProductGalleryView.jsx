@@ -344,21 +344,42 @@ function ProductGalleryView({ config, onLoadTemplate }) {
         const updatePromises = (ordersToUpdate || []).map(async (order) => {
           const breakdown = order.financial_breakdown || {};
           const editorState = breakdown.editorState || {};
+          let orderItems = editorState.orderItems || [];
+
+          let updatedStandardPrice = newStandardPrice;
+          let updatedFamilyPrice = newFamilyPrice;
+
+          if (orderItems.length > 0) {
+            orderItems = orderItems.map(oi => {
+              if (oi.productName === editingProduct.name) {
+                return {
+                  ...oi,
+                  productName: newName,
+                  fixedStandardPrice: newStandardPrice,
+                  fixedFamilyPrice: newFamilyPrice
+                };
+              }
+              return oi;
+            });
+            updatedStandardPrice = orderItems.reduce((s, oi) => s + (oi.fixedStandardPrice * oi.quantity), 0);
+            updatedFamilyPrice = orderItems.reduce((s, oi) => s + (oi.fixedFamilyPrice * oi.quantity), 0);
+          }
           
           const newBreakdown = {
             ...breakdown,
             pricingMode: 'fixed',
-            fixedStandardPrice: newStandardPrice,
-            fixedFamilyPrice: newFamilyPrice,
+            fixedStandardPrice: updatedStandardPrice,
+            fixedFamilyPrice: updatedFamilyPrice,
             addToGallery: newAddToGallery,
             editorState: {
               ...editorState,
               itemName: newName,
               pricingMode: 'fixed',
-              fixedStandardPrice: newStandardPrice,
-              fixedFamilyPrice: newFamilyPrice,
+              fixedStandardPrice: updatedStandardPrice,
+              fixedFamilyPrice: updatedFamilyPrice,
               imageUrl: newImageUrl || '',
               addToGallery: newAddToGallery,
+              orderItems: orderItems
             }
           };
 
@@ -370,9 +391,9 @@ function ProductGalleryView({ config, onLoadTemplate }) {
           if (isFree) {
             newTotalPrice = 0;
           } else if (isFamily) {
-            newTotalPrice = newFamilyPrice * quantity;
+            newTotalPrice = orderItems.length > 0 ? updatedFamilyPrice : (newFamilyPrice * quantity);
           } else {
-            newTotalPrice = newStandardPrice * quantity;
+            newTotalPrice = orderItems.length > 0 ? updatedStandardPrice : (newStandardPrice * quantity);
           }
 
           return supabase

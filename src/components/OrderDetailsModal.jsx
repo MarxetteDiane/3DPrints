@@ -154,6 +154,8 @@ function toEditorState(order, config) {
       fixedQuantity: persisted.fixedQuantity !== undefined ? Number(persisted.fixedQuantity) : (snapshot.fixedQuantity !== undefined ? Number(snapshot.fixedQuantity) : 1),
       addToGallery: persisted.addToGallery !== false && snapshot.addToGallery !== false,
       amountPaid: snapshot.amountPaid !== undefined ? Number(snapshot.amountPaid) : (persisted.amountPaid !== undefined ? Number(persisted.amountPaid) : 0),
+      entryType: persisted.entryType || 'custom',
+      orderItems: persisted.orderItems || [],
     };
   }
 
@@ -217,6 +219,8 @@ function toEditorState(order, config) {
     fixedQuantity: snapshot.fixedQuantity !== undefined ? Number(snapshot.fixedQuantity) : 1,
     addToGallery: snapshot.addToGallery !== false,
     amountPaid: snapshot.amountPaid !== undefined ? Number(snapshot.amountPaid) : 0,
+    entryType: 'custom',
+    orderItems: [],
   };
 }
 
@@ -1673,37 +1677,42 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                   <div className="space-y-3">
                     <div><p className="text-xs text-zinc-500 mb-1">Item Title</p><p className="font-medium text-zinc-900 text-base">{item.name || 'Unnamed Asset'}</p></div>
                     <div><p className="text-xs text-zinc-500 mb-1">Quantity</p><p className="font-semibold text-zinc-900 text-sm">{item.number_of_plates} Plates</p></div>
-
-                    {data.financial_breakdown?.editorState?.orderItems?.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-zinc-100">
-                        <p className="text-xs text-zinc-500 mb-2 font-semibold uppercase tracking-wider">Order Line Items</p>
-                        <div className="border border-zinc-200 rounded-lg overflow-hidden">
-                          <div className="px-3 py-1.5 bg-zinc-50 border-b border-zinc-200 grid grid-cols-12 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-                            <span className="col-span-1 text-center">Qty</span>
-                            <span className="col-span-5">Product</span>
-                            <span className="col-span-3">Variant</span>
-                            <span className="col-span-3 text-right">Subtotal</span>
-                          </div>
-                          <div className="divide-y divide-zinc-100 bg-white">
-                            {data.financial_breakdown.editorState.orderItems.map((oi, idx) => (
-                              <div key={oi.id || idx} className="px-3 py-2 grid grid-cols-12 items-center text-xs">
-                                <span className="col-span-1 text-center font-bold text-zinc-700">{oi.quantity}x</span>
-                                <span className="col-span-5 font-medium text-zinc-800 truncate">{oi.productName}</span>
-                                <span className="col-span-3 text-zinc-500 truncate">{oi.variantName}</span>
-                                <span className="col-span-3 text-right font-bold text-zinc-900">₱{(oi.fixedStandardPrice * oi.quantity).toFixed(2)}</span>
-                              </div>
-                            ))}
-                          </div>
-                          <div className="px-3 py-2 bg-zinc-50 border-t border-zinc-200 flex justify-between text-xs font-bold text-zinc-900">
-                            <span>Total ({data.financial_breakdown.editorState.orderItems.reduce((s, oi) => s + oi.quantity, 0)} items)</span>
-                            <span>₱{data.financial_breakdown.editorState.orderItems.reduce((s, oi) => s + (oi.fixedStandardPrice * oi.quantity), 0).toFixed(2)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
+
+              {data.financial_breakdown?.editorState?.orderItems?.length > 0 && (
+                <div className="border border-zinc-200 rounded-lg overflow-hidden bg-white shadow-xs">
+                  <div className="bg-zinc-50 px-5 py-3 border-b border-zinc-200 flex items-center gap-2">
+                    <Package className="w-4 h-4 text-blue-600" />
+                    <h4 className="font-semibold text-zinc-900 text-sm uppercase tracking-wider">Order Line Items</h4>
+                  </div>
+                  <div className="p-5">
+                    <div className="border border-zinc-200 rounded-lg overflow-hidden">
+                      <div className="px-3 py-1.5 bg-zinc-50 border-b border-zinc-200 grid grid-cols-12 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                        <span className="col-span-1 text-center">Qty</span>
+                        <span className="col-span-5">Product</span>
+                        <span className="col-span-3">Variant</span>
+                        <span className="col-span-3 text-right">Subtotal</span>
+                      </div>
+                      <div className="divide-y divide-zinc-100 bg-white">
+                        {data.financial_breakdown.editorState.orderItems.map((oi, idx) => (
+                          <div key={oi.id || idx} className="px-3 py-2 grid grid-cols-12 items-center text-xs">
+                            <span className="col-span-1 text-center font-bold text-zinc-700">{oi.quantity}x</span>
+                            <span className="col-span-5 font-medium text-zinc-800 truncate">{oi.productName}</span>
+                            <span className="col-span-3 text-zinc-500 truncate">{oi.variantName}</span>
+                            <span className="col-span-3 text-right font-bold text-zinc-900">₱{(oi.fixedStandardPrice * oi.quantity).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="px-3 py-2 bg-zinc-50 border-t border-zinc-200 flex justify-between text-xs font-bold text-zinc-900">
+                        <span>Total ({data.financial_breakdown.editorState.orderItems.reduce((s, oi) => s + oi.quantity, 0)} items)</span>
+                        <span>₱{data.financial_breakdown.editorState.orderItems.reduce((s, oi) => s + (oi.fixedStandardPrice * oi.quantity), 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="border border-zinc-200 rounded-lg overflow-hidden">
                 <div className="bg-zinc-50 px-5 py-3 border-b border-zinc-200">
