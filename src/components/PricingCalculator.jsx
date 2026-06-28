@@ -273,7 +273,7 @@ export default function PricingCalculator({
 
   // State local helpers mapping
   const entryType = state.entryType || 'catalog';
-  const orderItems = state.orderItems || [];
+  const orderItems = React.useMemo(() => state.orderItems || [], [state.orderItems]);
 
   // Totals calculations
   const totals = calculateTotals(state, config);

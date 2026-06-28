@@ -601,7 +601,11 @@ export default function OrderDetailsModal({ orderId, onClose, initialIsEditing =
                 </div>
               </div>
 
-              {data.financial_breakdown?.editorState?.labors?.length > 0 && (
+              {data.financial_breakdown?.editorState?.labors?.length > 0 &&
+                data.financial_breakdown.editorState.labors.reduce(
+                  (sum, lab) => sum + (parseFloat(lab.hours) || 0) * (parseFloat(lab.rate) || 0),
+                  0
+                ) > 0 && (
                 <div className="border border-zinc-200 rounded-lg overflow-hidden bg-white shadow-sm">
                   <div className="bg-zinc-50 px-5 py-3 border-b border-zinc-200">
                     <h4 className="font-semibold text-zinc-900 text-sm uppercase tracking-wider flex items-center gap-2">
