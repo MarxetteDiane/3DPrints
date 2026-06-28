@@ -272,7 +272,7 @@ export default function PricingCalculator({
   };
 
   // State local helpers mapping
-  const entryType = state.entryType || 'custom';
+  const entryType = state.entryType || 'catalog';
   const orderItems = state.orderItems || [];
 
   // Totals calculations
@@ -298,6 +298,9 @@ export default function PricingCalculator({
       }
 
       if (orderItems.length === 0) {
+        if (state.isExistingOrder) {
+          return;
+        }
         onChange((current) => ({
           ...current,
           itemName: '',
@@ -344,19 +347,24 @@ export default function PricingCalculator({
         worker: ''
       }];
 
-      onChange((current) => ({
-        ...current,
-        itemName: combinedItemName,
-        fixedStandardPrice,
-        fixedFamilyPrice,
-        pricingMode: 'fixed',
-        plates,
-        labors
-      }));
+      onChange((current) => {
+        const nextState = {
+          ...current,
+          itemName: combinedItemName,
+          fixedStandardPrice,
+          fixedFamilyPrice,
+          pricingMode: 'fixed',
+        };
+        if (!state.isExistingOrder) {
+          nextState.plates = plates;
+          nextState.labors = labors;
+        }
+        return nextState;
+      });
     } else {
       prevOrderItemsRef.current = orderItems;
     }
-  }, [orderItems, entryType, config, onChange, state.plates]);
+  }, [orderItems, entryType, config, onChange, state.plates, state.isExistingOrder]);
 
   const uFilamentUsage = buildInventoryUsageMap(state);
   const uMaterialUsage = buildMaterialUsageMap(state);

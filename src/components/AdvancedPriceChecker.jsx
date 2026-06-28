@@ -33,6 +33,7 @@ export default function AdvancedPriceChecker({ config = DEFAULT_CONFIG }) {
           entryType: template.entryType || 'custom',
           orderItems: template.orderItems || [],
           customFinalPrice: template.customFinalPrice !== undefined ? String(template.customFinalPrice) : '',
+          isExistingOrder: false,
         }));
 
         alert(`Successfully loaded recipe blueprint for "${template.itemName || 'Unnamed Item'}"! You can now adjust materials or save as a new order.`);

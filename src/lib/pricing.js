@@ -226,7 +226,7 @@ export function initEditorState(config = DEFAULT_CONFIG) {
     clientContact: '',
     itemName: '',
     imageUrl: '',
-    pricingMode: 'dynamic',
+    pricingMode: 'fixed',
     fixedStandardPrice: 0,
     fixedFamilyPrice: 0,
     fixedQuantity: 1,
@@ -239,7 +239,7 @@ export function initEditorState(config = DEFAULT_CONFIG) {
     isFamilyPricing: false,
     addToGallery: true,
     amountPaid: 0,
-    entryType: 'custom',
+    entryType: 'catalog',
     orderItems: [],
   };
 }
@@ -294,6 +294,7 @@ export function toEditorState(order, config = DEFAULT_CONFIG) {
       amountPaid: snapshot.amountPaid !== undefined ? Number(snapshot.amountPaid) : (persisted.amountPaid !== undefined ? Number(persisted.amountPaid) : 0),
       entryType: persisted.entryType || 'custom',
       orderItems: persisted.orderItems || [],
+      isExistingOrder: true,
     };
   }
 
@@ -359,5 +360,6 @@ export function toEditorState(order, config = DEFAULT_CONFIG) {
     amountPaid: snapshot.amountPaid !== undefined ? Number(snapshot.amountPaid) : 0,
     entryType: 'custom',
     orderItems: [],
+    isExistingOrder: true,
   };
 }
