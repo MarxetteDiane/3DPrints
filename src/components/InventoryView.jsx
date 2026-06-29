@@ -198,6 +198,10 @@ function FilamentRow({ filament, onUpdate, onDelete, onRestock }) {
   const [draft, setDraft] = useState(filament);
   const isInitialCreation = filament.weightGrams === 0 && filament.costPerKg === 0;
 
+  useEffect(() => {
+    setDraft(filament);
+  }, [filament]);
+
   const handleSave = () => {
     if (!draft.color.trim()) {
       alert("Please enter a filament color before saving.");
@@ -701,9 +705,14 @@ function SpoolCard({ filament, onUpdate, onDelete, onRestock }) {
   });
   const [draft, setDraft] = useState(filament);
 
+  useEffect(() => {
+    setDraft(filament);
+  }, [filament]);
+
   const isLow = filament.weightGrams <= LOW_STOCK_THRESHOLD_GRAMS;
   const percent = Math.min(100, Math.max(0, (filament.weightGrams / 1000) * 100));
   const swatch = getFilamentColorHex(filament.color);
+  const isInitialCreation = filament.weightGrams === 0 && filament.costPerKg === 0;
 
   const handleSave = () => {
     if (!draft.color.trim()) {
